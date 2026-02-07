@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Rugby Sub Manager - Pro 2026 v4.3.0 (iPad Optimized)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rugby Sub Manager - Pro 2026 v4.3.0 (iPad Support)</title>
     
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     
@@ -21,75 +21,110 @@
             --stopwatch-bg: #1e293b; --stopwatch-text: #34d399;
         }
         
-        /* iPad/タッチ操作のシステム干渉を防止 */
-        * { 
-            -webkit-tap-highlight-color: transparent; 
-            -webkit-touch-callout: none; /* 長押しメニュー禁止 */
-        }
-        
+        /* iPad/タッチ操作のシステム干渉を防止する設定（見た目は変わりません） */
+        * { -webkit-tap-highlight-color: transparent; }
         body { 
             font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); 
             margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; 
             user-select: none; -webkit-user-select: none; touch-action: none; 
         }
 
-        /* デザイン・レイアウト（変更なし） */
         header { background: #fff; padding: 10px 20px; border-bottom: 2px solid var(--border-color); flex-shrink: 0; }
         .header-top { display: flex; justify-content: space-between; align-items: center; position: relative; }
         #team-name-display { font-weight: 900; font-size: 1.4rem; color: var(--text-main); }
         .header-right { display: flex; align-items: center; gap: 15px; }
         .btn-setting { background: #f1f5f9; border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 8px; font-weight: 800; font-size: 0.75rem; cursor: pointer; color: var(--text-sub); transition: 0.2s; }
+        .btn-setting:hover { background: #e2e8f0; }
+        .cat-info-inline { font-size: 10px; font-weight: 800; color: var(--text-sub); margin-left: 8px; text-transform: none; letter-spacing: 0; }
         
-        /* ポップアップ関連 */
         #setting-popup { display: none; position: absolute; top: 100%; right: 0; background: #fff; border: 2px solid var(--text-main); border-radius: 12px; padding: 15px; z-index: 6500; box-shadow: 0 10px 30px rgba(0,0,0,0.3); width: 220px; margin-top: 10px; }
         .setting-menu-btn { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid var(--border-color); border-radius: 8px; background: #f8fafc; font-weight: 800; cursor: pointer; text-align: left; font-size: 0.85rem; }
+        .setting-menu-btn:hover { background: #f1f5f9; }
+        .cat-limit-popup { display: none; position: absolute; top: 0; right: 230px; background: #fff; border: 3px solid var(--text-main); border-radius: 10px; padding: 15px; z-index: 6600; box-shadow: 0 10px 30px rgba(0,0,0,0.3); width: 200px; }
+        .cat-limit-popup input { width: 40px; padding: 4px; font-size: 1rem; font-weight: 900; text-align: center; }
+        .cat-limit-popup label { font-size: 11px; font-weight: 800; }
+        #uncontested-alert { display: none; background: #ef4444; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 900; font-size: 0.9rem; margin-right: 10px; white-space: nowrap; }
+        .blink-alert { animation: blink 1s infinite; }
+        @keyframes blink { 0% {opacity: 1;} 50% {opacity: 0.6;} 100% {opacity: 1;} }
+
+        .stopwatch-container { position: relative; display: flex; align-items: center; }
+        .stopwatch-panel { display: flex; align-items: center; gap: 12px; background: #f8fafc; padding: 6px 16px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+        #timer-display { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 800; color: var(--stopwatch-bg); min-width: 120px; text-align: center; letter-spacing: -1px; cursor: pointer; }
+        #time-edit-popup { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 3px solid var(--stopwatch-bg); border-radius: 15px; padding: 20px; z-index: 5000; box-shadow: 0 15px 40px rgba(0,0,0,0.4); margin-top: 10px; width: 220px; }
+        .edit-input-group { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        .edit-input-group input { width: 80px; font-size: 2.2rem; font-weight: 800; text-align: center; border: 2px solid var(--border-color); border-radius: 10px; padding: 5px; font-family: 'JetBrains Mono'; background: #f8fafc; }
+        .edit-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn-edit-save { background: var(--field-green); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 0.9rem; }
+        .btn-edit-cancel { background: #64748b; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 0.9rem; }
+        .btn-sw { border: none; border-radius: 8px; padding: 8px 16px; font-weight: 800; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; color: #fff; text-transform: uppercase; display: flex; align-items: center; justify-content: center; min-width: 80px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-toggle-start { background: var(--field-green); }
+        .btn-toggle-pause { background: var(--bench-orange); }
+        .btn-reset { background: #64748b; }
+        .btn-history { background: #94a3b8; min-width: 60px; }
         
-        /* タイマー関連 */
-        .stopwatch-panel { display: flex; align-items: center; gap: 12px; background: #f8fafc; padding: 6px 16px; border-radius: 12px; border: 1px solid var(--border-color); }
-        #timer-display { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 800; min-width: 120px; text-align: center; cursor: pointer; }
-        
-        /* メインカラム */
         main { display: flex; gap: 10px; padding: 10px; flex-grow: 1; overflow: hidden; }
         .column { background: var(--bg-column); border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column; overflow: hidden; height: 100%; width: 280px; flex-shrink: 0; }
         .col-res-admin { width: 440px; }
-        .scroll-area { flex-grow: 1; overflow-y: auto; padding: 8px; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+        h2 { font-size: 0.8rem; padding: 8px; background: #f8fafc; margin: 0; text-align: center; font-weight: 900; color: var(--text-sub); border-bottom: 1px solid var(--border-color); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; }
+        .scroll-area { flex-grow: 1; overflow-y: auto; padding: 8px; -webkit-overflow-scrolling: touch; }
         
-        /* 選手カード（タッチしやすく微調整） */
         .player-card { 
-            height: 38px; /* わずかに高くしてタップ精度向上 */
-            margin-bottom: 4px; border: 1px solid var(--border-color); border-radius: 6px; 
-            display: flex; align-items: center; background: #fff; padding: 0 6px; 
-            font-weight: 700; font-size: 0.85rem; cursor: grab; overflow: hidden; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; 
-            touch-action: none; /* ドラッグ要素はスクロールさせない */
+            height: 34px; margin-bottom: 4px; border: 1px solid var(--border-color); border-radius: 6px; display: flex; align-items: center; background: #fff; padding: 0 6px; font-weight: 700; font-size: 0.85rem; cursor: grab; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; 
+            -webkit-touch-callout: none; /* iPadでのメニューを無効化 */
         }
-        
-        /* その他のスタイルはMaster05と完全同一 */
         .pos-label { width: 22px; color: var(--text-sub); font-size: 0.75rem; border-right: 1px solid #eee; margin-right: 8px; text-align: center; flex-shrink: 0; cursor: pointer; font-weight: 900; }
-        .name-area { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-        .attr-tag { font-size: 0.6rem; padding: 2px 5px; border-radius: 4px; margin-left: 4px; font-weight: 900; color: #fff; }
-        .cat-tag { background: #64748b; } .fr-tag { background: #ef4444; }
-        
+        .name-area { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; text-align: left; }
+        .attr-tag { font-size: 0.6rem; padding: 2px 5px; border-radius: 4px; margin-left: 4px; font-weight: 900; color: #fff; flex-shrink: 0; }
+        .cat-tag { background: #64748b; }
+        .fr-tag { background: #ef4444; }
+
+        .color-normal { color: #000 !important; }
+        .color-medical { color: var(--text-medical) !important; }
+        .color-tactical { color: var(--text-tactical) !important; }
+        .bg-injury { background-color: var(--bg-injury) !important; color: var(--text-injury) !important; pointer-events: none; cursor: not-allowed; }
         .status-yc { background-color: #fef9c3 !important; border-color: var(--color-yc) !important; }
-        .status-rc { background-color: #fee2e2 !important; border-color: var(--color-rc) !important; pointer-events: none; }
+        .status-rc { background-color: #fee2e2 !important; border-color: var(--color-rc) !important; pointer-events: none; cursor: not-allowed; }
+        .status-ofr { background-color: #ffedd5 !important; border-color: var(--color-ofr) !important; }
         
-        .res-card, .admin-card { background: #fff; border: 2px solid var(--border-color); border-left: 5px solid var(--bench-orange); border-radius: 8px; padding: 10px; margin-bottom: 8px; position: relative; font-size: 0.85rem; }
+        .res-card, .admin-card { background: #fff; border: 2px solid var(--border-color); border-left: 5px solid var(--bench-orange); border-radius: 8px; padding: 10px; margin-bottom: 8px; position: relative; font-size: 0.85rem; box-shadow: 0 2px 6px rgba(0,0,0,0.05); min-height: fit-content; }
+        .btn-delete { position: absolute; top: 4px; right: 4px; background: #fee2e2; color: #ef4444; border: none; border-radius: 4px; cursor: pointer; padding: 1px 5px; font-weight: 800; z-index: 20; font-size: 0.7rem; }
+        .card-row { margin-bottom: 3px; display: flex; align-items: center; gap: 15px; }
+        .card-row span:first-child { width: 35px; font-weight: 800; color: var(--text-sub); font-size: 0.75rem; text-align: left; }
+        .card-row b { flex-grow: 1; text-align: left; color: #000; }
         .btn-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 8px 0; }
-        .btn-group button { font-size: 1rem; padding: 8px 2px; cursor: pointer; font-weight: 800; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
+        .btn-group button { font-size: 1rem; padding: 8px 2px; cursor: pointer; font-weight: 800; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; transition: 0.2s; position: relative; z-index: 10; white-space: nowrap; overflow: hidden; }
+        .btn-group button.active-tactical { background: var(--text-tactical); color: #fff; border-color: var(--text-tactical); }
+        .btn-group button.active-injury { background: #64748b; color: #fff; border-color: #64748b; }
+        .btn-group button.active-medical { background: var(--text-medical); color: #fff; border-color: var(--text-medical); }
+        .btn-group button.active-return { background: var(--field-green); color: #fff; border-color: var(--field-green); }
+        .btn-group button.active-yc { background: var(--color-yc); color: #000; border-color: var(--color-yc); }
+        .btn-group button.active-rc { background: var(--color-rc); color: #fff; border-color: var(--color-rc); }
+        .btn-group button.active-ofr { background: var(--color-ofr); color: #fff; border-color: var(--color-ofr); }
+        .btn-group button.active-temporary { background: #1e293b; color: #fff; border-color: #1e293b; }
         
-        .btn-exec, .btn-go-res { background: var(--field-green); color: white; border: none; width: 100%; height: 40px; border-radius: 8px; font-weight: 900; cursor: pointer; margin-top: 4px; }
+        .btn-exec, .btn-go-res { background: var(--field-green); color: white; border: none; width: 100%; height: 32px; border-radius: 8px; font-weight: 900; cursor: pointer; font-size: 0.85rem; margin-top: 4px; position: relative; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-go-res { background: #475569; }
+        .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; padding-right: 25px; }
+        .admin-times { font-size: 0.75rem; color: var(--text-sub); font-family: monospace; }
+        .admin-countdown { font-size: 1.1rem; color: var(--text-medical); font-weight: 900; font-family: 'JetBrains Mono'; }
+        
+        .log-item { font-size: 11px; border-bottom: 1px solid #eee; padding: 6px; line-height: 1.4; border-radius: 4px; margin-bottom: 2px; }
+        .log-yc { background-color: var(--color-yc); color: #000; cursor: pointer; }
+        .log-rc { background-color: var(--color-rc); color: #fff; cursor: pointer; }
+        .log-ofr { background-color: var(--color-ofr); color: #fff; cursor: pointer; }
+        .log-period { color: #dc2626; font-weight: 900; }
+        .log-reason-text { font-style: italic; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 2px; display: block; margin-top: 2px; }
         
         #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 7000; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-        .modal-content { background: white; padding: 20px; border-radius: 12px; width: 320px; max-height: 80vh; overflow-y: auto; text-align: center; }
+        .modal-content { background: white; padding: 20px; border-radius: 12px; width: 320px; max-height: 80vh; overflow-y: auto; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .modal-player-btn { width: 100%; padding: 10px; margin-bottom: 5px; border: 1px solid var(--border-color); border-radius: 6px; background: white; font-weight: 700; cursor: pointer; text-align: left; }
+        .reason-edit-area { width: 100%; padding: 10px; font-size: 1rem; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; }
+        .fr-hist-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-weight: 800; }
+        .fr-hist-table th, .fr-hist-table td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
+        .fr-hist-table th { background: #f8fafc; font-size: 0.75rem; color: var(--text-sub); }
 
-        /* ドラッグ中のプレビュー（iOSで違和感がないように） */
-        .dnd-poly-ghost { 
-            opacity: 0.8 !important; 
-            background: #fff !important; 
-            border: 2px solid var(--bench-orange) !important; 
-            border-radius: 8px !important;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2) !important;
-        }
+        /* iPad対応：ドラッグ時のプレビュー（見た目は変わりません） */
+        .dnd-poly-ghost { opacity: 0.8 !important; background: #fff !important; border: 2px solid var(--bench-orange) !important; border-radius: 8px !important; }
     </style>
 </head>
 <body onload="initApp()">
@@ -101,19 +136,22 @@
             <div id="uncontested-alert">Uncontested scrum</div>
             <div class="stopwatch-container">
                 <div class="stopwatch-panel">
-                    <div id="timer-display" onclick="handleTimerClick(event)">00:00</div>
+                    <div id="timer-display" ondblclick="showTimeEdit()">00:00</div>
                     <button id="btn-toggle" class="btn-sw btn-toggle-start" onclick="toggleTimer()">START</button>
                     <button class="btn-sw btn-reset" onclick="resetTimer()">RESET</button>
                     <button class="btn-sw btn-history" onclick="undo()" title="Undo">UNDO</button>
                     <button class="btn-sw btn-history" onclick="redo()" title="Redo">REDO</button>
                 </div>
-                <div id="time-edit-popup" style="display:none; position:absolute; top:100%; left:0; background:#fff; border:3px solid #1e293b; border-radius:15px; padding:20px; z-index:5000; margin-top:10px;">
-                    <div style="display:flex; gap:10px; margin-bottom:20px;">
-                        <input type="number" id="edit-min" style="width:60px; font-size:1.5rem; text-align:center;"> : 
-                        <input type="number" id="edit-sec" style="width:60px; font-size:1.5rem; text-align:center;">
+                <div id="time-edit-popup">
+                    <div class="edit-input-group">
+                        <input type="number" id="edit-min" min="0" max="99">
+                        <span style="font-weight:900; font-size:1.5rem;">:</span>
+                        <input type="number" id="edit-sec" min="0" max="59">
                     </div>
-                    <button onclick="saveEditedTime()" style="background:var(--field-green); color:#fff; padding:10px; width:100%; border:none; border-radius:5px;">UPDATE</button>
-                    <button onclick="hideTimeEdit()" style="margin-top:5px; width:100%; border:none; background:#ccc; padding:5px;">CLOSE</button>
+                    <div class="edit-actions">
+                        <button class="btn-edit-save" onclick="saveEditedTime()">UPDATE</button>
+                        <button class="btn-edit-cancel" onclick="hideTimeEdit()">CLOSE</button>
+                    </div>
                 </div>
             </div>
             <div style="position: relative;">
@@ -126,10 +164,12 @@
                     <hr>
                     <button class="setting-menu-btn" onclick="allClear()" style="background:#fee2e2; color:#ef4444; border-color:#ef4444;">ALL CLEAR</button>
                     <button class="setting-menu-btn" onclick="toggleSetting()" style="background:#eee; text-align:center;">CLOSE</button>
-                    <div id="cat-edit-popup" class="cat-limit-popup" style="display:none; padding:10px; border:1px solid #ccc;">
-                        <label>ABC Max:</label><input type="number" id="limit-abc" value="4" style="width:40px;"><br>
-                        <label>C Only:</label><input type="number" id="limit-c" value="3" style="width:40px;"><br>
-                        <button onclick="hideCatEdit()">SAVE</button>
+                    <div id="cat-edit-popup" class="cat-limit-popup">
+                        <div style="margin-bottom:10px;">
+                            <label>A2+B+C Max: </label><input type="number" id="limit-abc" value="4"><br>
+                            <label>C Only Max: </label><input type="number" id="limit-c" value="3">
+                        </div>
+                        <button onclick="hideCatEdit()" style="width:100%; padding:5px; background:var(--field-green); color:white; border:none; border-radius:4px; font-weight:800;">SAVE</button>
                     </div>
                 </div>
             </div>
@@ -139,14 +179,14 @@
 
 <main>
     <div class="column">
-        <h2>FIELD <span id="cat-info" class="cat-info-inline"></span></h2>
+        <h2>FIELD <span id="cat-info" class="cat-info-inline">A2+B+C: 0/4 | C: 0/3</span></h2>
         <div id="field-list" class="scroll-area"></div>
     </div>
-    <div class="column" ondragover="handleDragOver(event)" ondrop="dropToBenchArea(event)">
+    <div class="column" ondragover="e=>e.preventDefault()" ondrop="dropToBenchArea(event)">
         <h2>Bench</h2><div id="bench-list" class="scroll-area"></div>
     </div>
     <div class="col-res-admin">
-        <div class="column" style="height: 48%; width: 100%;" ondragover="handleDragOver(event)" ondrop="dropToRes(event)">
+        <div class="column" style="height: 48%; width: 100%;" ondragover="e=>e.preventDefault()" ondrop="dropToRes(event)">
             <h2>Reservations</h2><div id="res-list" class="scroll-area"></div>
         </div>
         <div class="column" style="height: 50%; width: 100%; margin-top: 2%;">
@@ -158,48 +198,24 @@
 
 <div id="modal-overlay">
     <div class="modal-content">
-        <h3 id="modal-title"></h3>
+        <h3 id="modal-title">Select Player</h3>
         <div id="modal-body-content"></div>
         <div id="modal-player-list"></div>
-        <button onclick="closeModal()" style="margin-top:10px; padding:10px 20px;">Close</button>
+        <button onclick="closeModal()" style="margin-top:10px; padding:8px 15px; border-radius:6px; border:none; background:#64748b; color:white; font-weight:800; cursor:pointer;">Close</button>
     </div>
 </div>
 
 <script>
-    // --- iPad対応初期化 ---
+    // --- iPad対応用 初期化設定 ---
     function initApp() {
-        // ポリフィルの適用
         MobileDragDrop.polyfill({
             dragImageGhostCustomClassName: "dnd-poly-ghost",
-            holdToDrag: 200 // 200ms長押しでドラッグ開始。誤操作防止に最適
+            holdToDrag: 200 // 200ms長押しでドラッグ開始
         });
-
-        // iPadでのスクロール暴発防止
-        window.addEventListener('touchmove', function(e) {
-            if (e.target.closest('.scroll-area')) return; // スクロールエリア内は許可
-            e.preventDefault();
-        }, { passive: false });
-
         loadFromStorage();
     }
 
-    // ドラッグオーバー時のデフォルト挙動抑制（iPadで必須）
-    function handleDragOver(e) {
-        e.preventDefault();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-    }
-
-    // ダブルクリックの代わりにシングルタップでも編集を開けるように調整（iPad配慮）
-    let lastTap = 0;
-    function handleTimerClick(e) {
-        const now = Date.now();
-        if (now - lastTap < 300) {
-            showTimeEdit();
-        }
-        lastTap = now;
-    }
-
-    // --- 以降のロジックはMaster05と完全同一 ---
+    // --- 以降、ロジック部分はMaster04コピーと完全同一 ---
     let fieldPositions = Array.from({length: 15}, (_, i) => ({ posId: i+1, player: null }));
     let benchPlayers = [], reservations = [], adminCards = [], logs = [];
     let elapsedTime = 0, timerInterval = null, lastTick = Date.now();
@@ -223,6 +239,7 @@
                 fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs;
                 elapsedTime = state.elapsedTime || 0; isSecondHalf = state.isSecondHalf || false; catLimits = state.catLimits || { abc: 4, c: 3 }; frHistory = state.frHistory || { 1: [], 2: [], 3: [] };
                 document.getElementById('team-name-display').innerText = state.teamName || "Drop Excel to Load Team";
+                document.getElementById('limit-abc').value = catLimits.abc; document.getElementById('limit-c').value = catLimits.c;
                 render();
             } catch(e) { console.error("Load failed", e); }
         }
@@ -230,19 +247,103 @@
 
     function allClear() { if (confirm("全てのデータを初期化します。よろしいですか？")) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
     function toggleSetting() { const p = document.getElementById('setting-popup'); p.style.display = (p.style.display === 'block') ? 'none' : 'block'; }
+
+    function showFRHistory() {
+        toggleSetting();
+        document.getElementById('modal-title').innerText = "FR HISTORY";
+        document.getElementById('modal-player-list').innerHTML = "";
+        const body = document.getElementById('modal-body-content');
+        let html = `<table class="fr-hist-table"><tr><th></th><th>1人目</th><th>2人目</th></tr>`;
+        [1, 2, 3].forEach(id => {
+            const h = frHistory[id] || [];
+            html += `<tr><td>FR${id}</td><td>(${h[0] || ""})</td><td>(${h[1] || ""})</td></tr>`;
+        });
+        html += `</table>`;
+        body.innerHTML = html;
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    function clearFRHistByPos(posId) { if (confirm(`FR${posId} の履歴を削除しますか？`)) { saveHistory(); frHistory[posId] = []; render(); } }
     function showCatEdit() { document.getElementById('cat-edit-popup').style.display = 'block'; }
     function hideCatEdit() { 
         catLimits.abc = parseInt(document.getElementById('limit-abc').value) || 0;
         catLimits.c = parseInt(document.getElementById('limit-c').value) || 0;
         document.getElementById('cat-edit-popup').style.display = 'none';
-        render();
+        updateCatDisplay(); saveToStorage();
     }
+
+    function exportLogs() {
+        if (logs.length === 0) { alert("ログがありません。"); return; }
+        let csvContent = "\uFEFF"; 
+        csvContent += "Type,MatchTime,PCTime,OUT_No,OUT_Name,IN_No,IN_Name,Reason\n";
+        logs.forEach(l => {
+            const type = (l.type || "").replace(/"/g, '""');
+            const matchTime = l.matchTime || ""; const pcTime = l.pcTime || "";
+            const outNo = l.out ? l.out.no : ""; const outName = l.out ? `"${l.out.name.replace(/"/g, '""')}"` : "";
+            const inNo = l.in ? l.in.no : ""; const inName = l.in ? `"${l.in.name.replace(/"/g, '""')}"` : "";
+            const reason = l.reason ? `"${l.reason.replace(/"/g, '""')}"` : "";
+            csvContent += `${type},${matchTime},${pcTime},${outNo},${outName},${inNo},${inName},${reason}\n`;
+        });
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const teamName = document.getElementById('team-name-display').innerText.replace(/\s+/g, '_');
+        link.setAttribute("href", url); link.setAttribute("download", `RugbyLog_${teamName}_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        toggleSetting();
+    }
+
+    function recordEndOfFirstHalf() {
+        saveHistory();
+        const timeStr = formatTime(elapsedTime); const PCStr = getPCNow();
+        logs.unshift({ id: Date.now(), type: 'End of first half', matchTime: timeStr, pcTime: PCStr, out: null, in: null, isPeriod: true });
+        elapsedTime = 2400000;
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; const btn = document.getElementById('btn-toggle'); btn.innerText = 'START'; btn.className = 'btn-sw btn-toggle-start'; }
+        document.getElementById('timer-display').innerText = "40:00"; isSecondHalf = true; render(); toggleSetting();
+    }
+
+    function updateCatDisplay() {
+        let countABC = 0, countC = 0;
+        fieldPositions.forEach(f => { if (f.player) { const c = String(f.player.cat).toUpperCase(); if (['A2', 'B', 'C'].includes(c)) countABC++; if (c === 'C') countC++; } });
+        const el = document.getElementById('cat-info');
+        if (el) el.innerText = `A2+B+C: ${countABC}/${catLimits.abc} | C: ${countC}/${catLimits.c}`;
+    }
+
+    function validateCategory(outP, inP) {
+        if (!inP) return true;
+        const inCat = String(inP.cat).toUpperCase(); if (!['A2', 'B', 'C'].includes(inCat)) return true;
+        let curABC = 0, curC = 0;
+        fieldPositions.forEach(f => { if (f.player && f.player.id !== outP?.id) { const c = String(f.player.cat).toUpperCase(); if (['A2', 'B', 'C'].includes(c)) curABC++; if (c === 'C') curC++; } });
+        const nextABC = curABC + 1; const nextC = curC + (inCat === 'C' ? 1 : 0);
+        if (nextABC > catLimits.abc) return confirm(`[カテゴリー制限] A2+B+Cが上限を超えます。よろしいですか？`);
+        if (nextC > catLimits.c) return confirm(`[カテゴリー制限] Cが上限を超えます。よろしいですか？`);
+        return true;
+    }
+
+    function showTimeEdit() { const popup = document.getElementById('time-edit-popup'); const s = Math.floor(elapsedTime / 1000); document.getElementById('edit-min').value = Math.floor(s / 60); document.getElementById('edit-sec').value = s % 60; popup.style.display = 'block'; }
+    function hideTimeEdit() { document.getElementById('time-edit-popup').style.display = 'none'; }
+
+    function saveEditedTime() {
+        saveHistory();
+        const m = parseInt(document.getElementById('edit-min').value) || 0; const s = parseInt(document.getElementById('edit-sec').value) || 0;
+        const newMs = (m * 60 + s) * 1000; const diff = newMs - elapsedTime;
+        const isCardType = (type) => ['YELLOW','RED','OFR'].includes(type);
+        adminCards.forEach(c => { if (isCardType(c.type) && c.remainingMs !== undefined) c.remainingMs = Math.max(0, c.remainingMs - diff); });
+        reservations.forEach(r => { if (r.isFromAdmin && isCardType(r.adminType) && r.remainingMs !== undefined) r.remainingMs = Math.max(0, r.remainingMs - diff); });
+        elapsedTime = newMs; lastTick = Date.now(); document.getElementById('timer-display').innerText = formatTime(elapsedTime);
+        render(); hideTimeEdit();
+    }
+
+    function getPCNow() { const d = new Date(); return [d.getHours(), d.getMinutes(), d.getSeconds()].map(v => String(v).padStart(2,'0')).join(':'); }
+    function isMedicalType(type) { return ['Blood bin', 'HIA', 'B / HIA', 'Injury / F'].includes(type); }
 
     function toggleTimer() {
         const btn = document.getElementById('btn-toggle');
-        if (!timerInterval) { lastTick = Date.now(); timerInterval = setInterval(tick, 100); btn.innerText = 'PAUSE'; btn.style.background = 'var(--bench-orange)'; }
-        else { clearInterval(timerInterval); timerInterval = null; btn.innerText = 'START'; btn.style.background = 'var(--field-green)'; }
+        if (!timerInterval) { lastTick = Date.now(); timerInterval = setInterval(tick, 100); btn.innerText = 'PAUSE'; btn.className = 'btn-sw btn-toggle-pause'; }
+        else { clearInterval(timerInterval); timerInterval = null; btn.innerText = 'START'; btn.className = 'btn-sw btn-toggle-start'; }
     }
+
+    function resetTimer() { if (confirm("経過時間を00:00にリセットしますか？")) { saveHistory(); elapsedTime = 0; isSecondHalf = false; if (timerInterval) toggleTimer(); document.getElementById('timer-display').innerText = "00:00"; saveToStorage(); } }
 
     function tick() {
         const now = Date.now(); const delta = now - lastTick; lastTick = now;
@@ -255,150 +356,232 @@
         };
         adminCards.forEach(updateRemaining); reservations.forEach(r => { if(r.isFromAdmin) updateRemaining(r); });
         document.getElementById('timer-display').innerText = formatTime(elapsedTime);
-        renderAdminTimes();
-    }
-
-    function renderAdminTimes() {
         adminCards.forEach(c => { const el = document.getElementById(`admin-time-${c.id}`); if (el) el.innerText = formatTime(c.remainingMs); });
         reservations.forEach(r => { if(r.isFromAdmin) { const el = document.getElementById(`res-time-${r.id}`); if(el) el.innerText = formatTime(r.remainingMs); }});
     }
 
-    function formatTime(ms) { const s = Math.floor(Math.max(0, ms) / 1000); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
+    function getCurrentState() { return JSON.stringify({ fieldPositions, benchPlayers, reservations, adminCards, logs, isSecondHalf, elapsedTime, frHistory }); }
+    function saveHistory() { historyStack.push(getCurrentState()); if (historyStack.length > 50) historyStack.shift(); redoStack = []; }
+    function undo() { if (historyStack.length === 0) return; redoStack.push(getCurrentState()); applyState(historyStack.pop()); }
+    function redo() { if (redoStack.length === 0) return; historyStack.push(getCurrentState()); applyState(redoStack.pop()); }
+    function applyState(stateStr) { const state = JSON.parse(stateStr); fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs; isSecondHalf = state.isSecondHalf || false; elapsedTime = state.elapsedTime || 0; frHistory = state.frHistory || { 1: [], 2: [], 3: [] }; render(); }
 
-    // --- 描画系 (render) ---
+    function dropToRes(e) { e.preventDefault(); if (window.dragged?.source === 'field') { if (!validateFR(window.dragged.item.player, null, window.dragged.item.posId)) return; saveHistory(); createCardReservation(window.dragged.item.player, window.dragged.item.posId); } }
+    function dropToBenchArea(e) { e.preventDefault(); if (window.dragged?.source === 'field') { const p = window.dragged.item.player; if (p && (p.status === 'rc' || p.status === 'injury')) return; if (!validateFR(p, null, window.dragged.item.posId)) return; saveHistory(); reservations.push({ id: Date.now(), out: p, in: null, posId: window.dragged.item.posId, type: 'Temporary', isFromAdmin: false, isCard: false }); render(); } }
+
+    function processExcel(data) {
+        saveHistory(); if (data[0] && data[0][0]) document.getElementById('team-name-display').innerText = data[0][0];
+        const ps = [];
+        for (let i = 2; i < data.length; i++) {
+            const row = data[i]; if (!row || !row[0]) continue;
+            const fr = []; if (String(row[3]).toLowerCase()==='true') fr.push('1'); if (String(row[4]).toLowerCase()==='true') fr.push('2'); if (String(row[5]).toLowerCase()==='true') fr.push('3');
+            ps.push({ id: 'P'+row[0], no: row[0], name: row[1], cat: row[2]||'', fr: fr, status: 'normal' });
+        }
+        fieldPositions = ps.filter(p => p.no <= 15).map((p, idx) => ({ posId: idx+1, player: p })); benchPlayers = ps.filter(p => p.no > 15); render();
+    }
+
+    function checkFRCompliance() {
+        let isUncontested = false; let globalMinPlayers = 15;
+        [1, 2, 3].forEach(posId => { const p = fieldPositions.find(fp => fp.posId === posId)?.player; if (!p || !p.fr || !p.fr.includes(String(posId))) { isUncontested = true; } });
+        const alertEl = document.getElementById('uncontested-alert');
+        if (isUncontested) {
+            for (let i = 1; i <= 3; i++) {
+                const hist = frHistory[i] || []; const p1 = hist[0]; const p2 = hist[1]; 
+                if (p1 && p2) {
+                    if (['Injury / F', 'BLOOD', 'HIA', 'B / HIA'].includes(p1)) { if (['YC', 'RC', 'OFR', 'OFR DECISION: RED UPGRADE'].includes(p2)) globalMinPlayers = Math.min(globalMinPlayers, 13); } 
+                    else if (p1 === 'Injury') { if (p1 === p2) globalMinPlayers = Math.min(globalMinPlayers, 14); if (['YC', 'RC', 'OFR', 'OFR DECISION: RED UPGRADE'].includes(p2)) globalMinPlayers = Math.min(globalMinPlayers, 13); } 
+                    else if (['YC', 'RC', 'OFR', 'OFR DECISION: RED UPGRADE'].includes(p1)) { if (['Injury / F', 'BLOOD', 'HIA', 'B / HIA'].includes(p2)) globalMinPlayers = Math.min(globalMinPlayers, 14); if (p2 === 'Injury') globalMinPlayers = Math.min(globalMinPlayers, 13); if (['YC', 'RC', 'OFR', 'OFR DECISION: RED UPGRADE'].includes(p2)) globalMinPlayers = Math.min(globalMinPlayers, 12); }
+                } else if (p1) { if (['YC', 'RC', 'OFR', 'OFR DECISION: RED UPGRADE'].includes(p1)) globalMinPlayers = Math.min(globalMinPlayers, 14); }
+            }
+            let currentFieldCount = fieldPositions.filter(f => f.player !== null).length; alertEl.innerHTML = `Uncontested scrum (${globalMinPlayers} players)`; alertEl.style.display = 'block';
+            if (currentFieldCount > globalMinPlayers) alertEl.classList.add('blink-alert'); else alertEl.classList.remove('blink-alert');
+        } else { alertEl.style.display = 'none'; alertEl.classList.remove('blink-alert'); }
+    }
+
+    function validateFR(outP, inP, posId) {
+        if (![1, 2, 3].includes(posId)) return true;
+        if (!inP || !inP.fr || !inP.fr.includes(String(posId))) {
+            const msg = !inP ? `フロントロー(#${posId})が不在になります。アンコンテスト・スクラムになりますがよろしいですか？` : `交代選手(#${inP.no})はフロントロー(#${posId})の資格がありません。アンコンテスト・スクラムになりますがよろしいですか？`;
+            return confirm(msg);
+        }
+        return true;
+    }
+
+    function getPlayerColorClass(p) { if (!p) return 'color-normal'; if (p.status === 'medical_red') return 'color-medical'; if (p.status === 'tactical') return 'color-tactical'; return 'color-normal'; }
+
     function render() {
         const fl = document.getElementById('field-list'); fl.innerHTML = '';
         fieldPositions.forEach(item => {
             const div = document.createElement('div'); div.className = 'player-card'; const p = item.player;
-            div.innerHTML = `<span class="pos-label">${item.posId}</span><span class="name-area">#${p ? p.no+' '+p.name : '---'}</span>`;
-            div.draggable = !!p; 
-            div.ondragstart = (e) => { if(p) window.dragged = {source:'field', item}; };
-            div.ondragover = handleDragOver;
-            div.ondrop = (e) => {
-                e.stopPropagation();
-                if (window.dragged?.source === 'bench') {
-                    saveHistory(); createReservation(item.player, window.dragged.p, item.posId, window.dragged.index, p === null ? 'Temporary' : 'Tactical');
-                } else if (window.dragged?.source === 'field') {
-                    saveHistory(); swapPlayers(window.dragged.item, item);
-                }
-                render();
-            };
+            div.innerHTML = `<span class="pos-label" ${[1,2,3].includes(item.posId) ? `onclick="clearFRHistByPos(${item.posId})"` : ""}>${item.posId}</span><span class="name-area color-normal">#${p ? p.no+' '+p.name : '---'}</span>${p?.cat ? `<span class=\"attr-tag cat-tag\">${p.cat}</span>` : ''}${p?.fr?.length ? `<span class=\"attr-tag fr-tag\">${p.fr.join('')}</span>` : ''}`;
+            div.draggable = !!p; div.ondragstart = () => { if(p) window.dragged = {source:'field', item}; }; div.ondragover = e => e.preventDefault();
+            div.ondrop = e => { e.stopPropagation(); if (window.dragged?.source === 'bench') { if (!validateFR(item.player, window.dragged.p, item.posId)) return; if (!validateCategory(item.player, window.dragged.p)) return; saveHistory(); createReservation(item.player, window.dragged.p, item.posId, window.dragged.index, p === null ? 'Temporary' : 'Tactical'); } else if (window.dragged?.source === 'field') { if (!validateFR(item.player, window.dragged.item.player, item.posId)) return; if (!validateFR(window.dragged.item.player, item.player, window.dragged.item.posId)) return; saveHistory(); swapPlayers(window.dragged.item, item); } };
             fl.appendChild(div);
         });
-
         const bl = document.getElementById('bench-list'); bl.innerHTML = '';
         benchPlayers.forEach((p, idx) => {
             if (p === null) return;
-            const div = document.createElement('div'); div.className = `player-card ${p.status === 'injury' ? 'bg-injury' : ''}`;
-            div.innerHTML = `<span class="name-area">#${p.no} ${p.name}</span>`;
-            div.draggable = true;
-            div.ondragstart = () => { window.dragged = {source:'bench', p, index: idx}; };
-            div.ondragover = handleDragOver;
+            let statusClass = p.status === 'yc' ? 'status-yc' : (p.status === 'rc' ? 'status-rc' : (p.status === 'ofr' ? 'status-ofr' : ''));
+            const div = document.createElement('div'); const isDisabled = ['injury', 'rc'].includes(p.status); div.className = `player-card ${p.status === 'injury' ? 'bg-injury' : ''} ${statusClass}`;
+            div.innerHTML = `<span class="name-area ${getPlayerColorClass(p)}">#${p.no} ${p.name}</span>${p.cat ? `<span class="attr-tag cat-tag">${p.cat}</span>` : ''}${p.fr?.length ? `<span class="attr-tag fr-tag">${p.fr.join('')}</span>` : ''}`;
+            div.draggable = !isDisabled; div.ondragstart = () => { if(!isDisabled) window.dragged = {source:'bench', p, index: idx}; }; div.ondragover = e => { if(!isDisabled) e.preventDefault(); };
+            div.ondrop = e => { e.stopPropagation(); if (isDisabled) return; if (window.dragged?.source === 'field') { if (!validateFR(window.dragged.item.player, p, window.dragged.item.posId)) return; if (!validateCategory(window.dragged.item.player, p)) return; saveHistory(); createReservation(window.dragged.item.player, p, window.dragged.item.posId, idx, 'Tactical'); } };
             bl.appendChild(div);
         });
-
-        renderRes();
-        renderAdmin();
-        renderLogs();
-        saveToStorage();
+        checkFRCompliance(); updateCatDisplay(); renderRes(); renderAdmin(); renderLogs(); saveToStorage(); 
     }
+
+    function swapPlayers(sourceItem, targetItem) { const pA = sourceItem.player; const pB = targetItem.player; sourceItem.player = pB; targetItem.player = pA; logs.unshift({ id: Date.now(), type: 'SWAP', matchTime: formatTime(elapsedTime), pcTime: getPCNow(), out: pA, in: pB }); render(); }
+    function createReservation(outP, inP, posId, benchIndex, type) { reservations.push({ id: Date.now(), out: outP, in: inP, posId: posId, benchIdx: benchIndex, type: type, isFromAdmin: false, isCard: false }); render(); }
+    function createCardReservation(outP, posId) { reservations.push({ id: Date.now(), out: outP, in: null, posId: posId, type: 'YELLOW', isCard: true }); render(); }
 
     function renderRes() {
         const el = document.getElementById('res-list'); el.innerHTML = '';
         reservations.forEach(r => {
             const div = document.createElement('div'); div.className = 'res-card';
-            div.innerHTML = `OUT: ${r.out ? r.out.name : 'NONE'} / IN: ${r.in ? r.in.name : 'NONE'}<br>
-                             <button class="btn-exec" onclick="executeRes(${r.id})">Execute</button>
-                             <button onclick="delItem('res',${r.id})">×</button>`;
+            const outColor = getPlayerColorClass(r.out); const inColor = getPlayerColorClass(r.in);
+            const outName = r.out ? `#${r.out.no} ${r.out.name}` : '(NONE)'; const inName = r.in ? `#${r.in.no} ${r.in.name}` : '(NONE)';
+            if (r.isCard) {
+                div.innerHTML = `<button class="btn-delete" onclick="delItem('res',${r.id})">×</button><div class="card-row"><span>OUT</span><b class="${outColor}">${outName}</b></div><div class="btn-group" style="grid-template-columns: repeat(3, 1fr);"><button class="${r.type==='YELLOW'?'active-yc':''}" onclick="setResType(${r.id},'YELLOW')">YELLOW</button><button class="${r.type==='RED'?'active-rc':''}" onclick="setResType(${r.id},'RED')">RED</button><button class="${r.type==='OFR'?'active-ofr':''}" onclick="setResType(${r.id},'OFR')">OFR</button></div><button class="btn-exec" onclick="executeRes(${r.id})">Execute</button>`;
+            } else {
+                let adminInfo = ''; if (r.isFromAdmin) { const timeStr = r.remainingMs !== undefined ? ` (<span id="res-time-${r.id}">${formatTime(r.remainingMs)}</span>)` : ''; adminInfo = `<div style="padding:4px 0; font-weight:800; color:var(--text-medical); border-top:1px dashed #ddd;">Pending: ${r.adminType} → ${r.type}${timeStr}</div>`; }
+                div.innerHTML = `<button class="btn-delete" onclick="delItem('res',${r.id})">×</button><div class="card-row"><span>OUT</span><b class="${outColor}">${outName}</b></div><div class="card-row in-row"><span>IN</span><b class="${inColor}">${inName}</b></div>${!r.isFromAdmin ? `<div class="btn-group"><button class="${r.type==='Tactical'?'active-tactical':''}" onclick="setResType(${r.id},'Tactical')">Tactical</button><button class="${r.type==='Injury'?'active-injury':''}" onclick="setResType(${r.id},'Injury')">Injury</button><button class="${r.type==='Injury / F'?'active-medical':''}" onclick="setResType(${r.id},'Injury / F')">Injury / F</button><div style="grid-column: span 1; background:transparent;"></div><button class="${r.type==='Blood bin'?'active-medical':''}" onclick="setResType(${r.id},'Blood bin')">BLOOD</button><button class="${r.type==='HIA'?'active-medical':''}" onclick="setResType(${r.id},'HIA')">HIA</button><button class="${r.type==='B / HIA'?'active-medical':''}" onclick="setResType(${r.id},'B / HIA')">B / HIA</button><button class="${r.type==='Temporary'?'active-temporary':''}" onclick="setResType(${r.id},'Temporary')">Temporary</button></div>` : adminInfo}<button class="btn-exec" onclick="executeRes(${r.id})">Execute</button>`;
+            }
             el.appendChild(div);
         });
     }
 
+    function setResType(id, type) { saveHistory(); const r = reservations.find(x => x.id === id); if(r) r.type = type; renderRes(); }
+
     function executeRes(id) {
-        saveHistory(); 
-        const r = reservations.find(x => x.id === id); if (!r) return;
+        saveHistory(); const r = reservations.find(x => x.id === id); if (!r) return;
         const f = fieldPositions.find(p => p.posId === r.posId);
-        // 交換ロジック（簡易版を維持）
-        f.player = r.in;
-        logs.unshift({ id: Date.now(), type: r.type, matchTime: formatTime(elapsedTime), out: r.out, in: r.in });
-        reservations = reservations.filter(x => x.id !== id);
-        render();
+        const matchTime = formatTime(elapsedTime); const pcTime = getPCNow();
+        const cleanupBench = (p) => { if (p) benchPlayers = benchPlayers.map(x => (x && x.id === p.id) ? null : x); };
+        cleanupBench(r.out); cleanupBench(r.in);
+
+        // FR履歴記録：Tactical, SWAP, Return, Temporary は除外
+        if ([1, 2, 3].includes(r.posId)) {
+            const forbidden = ['SWAP', 'Temporary', 'Tactical', 'Return'];
+            if (!forbidden.includes(r.type)) {
+                let displayType = r.type;
+                if(r.type === 'Blood bin') displayType = 'BLOOD'; if(r.type === 'Injury') displayType = 'Injury'; if(r.type === 'YELLOW') displayType = 'YC'; if(r.type === 'RED') displayType = 'RC'; if(r.type === 'B / HIA') displayType = 'B / HIA';
+                frHistory[r.posId].push(displayType);
+            }
+        }
+
+        if (r.isCard) {
+            const statusMap = { 'YELLOW': 'yc', 'RED': 'rc', 'OFR': 'ofr' };
+            logs.unshift({ id: Date.now(), type: r.type, matchTime: matchTime, pcTime: pcTime, out: r.out, in: null, isColor: true, reason: "" });
+            if (r.out) { const updatedPlayer = {...r.out, status: statusMap[r.type]}; const eIdx = benchPlayers.indexOf(null); if (eIdx !== -1) benchPlayers[eIdx] = updatedPlayer; else benchPlayers.push(updatedPlayer); }
+            f.player = null;
+            const initialRemaining = r.type === 'RED' ? 1200000 : 600000;
+            adminCards.push({ id: Date.now(), type: r.type, out: r.out, in: null, posId: r.posId, matchTime: matchTime, pcTime: pcTime, remainingMs: initialRemaining, nextAction: r.type === 'RED' ? 'Replacement' : 'Return' });
+        } else if (r.type === 'Temporary') {
+            const cF = f.player; f.player = r.in; if (cF) { const eIdx = benchPlayers.indexOf(null); if (eIdx !== -1) benchPlayers[eIdx] = cF; else benchPlayers.push(cF); }
+            logs.unshift({ id: Date.now(), type: 'Temporary (OUT)', matchTime: matchTime, pcTime: pcTime, out: cF, in: r.in });
+        } else {
+            if (r.out) {
+                let s = 'normal'; if(r.adminType === 'RED' || r.type === 'RED' || r.ofrDecision === 'RED UPGRADE') s = 'rc'; else if(r.type === 'Tactical') s = 'tactical'; else if(r.type === 'Injury') s = 'injury';
+                if (isMedicalType(r.type) && !r.isFromAdmin && r.type !== 'Injury / F') { s = 'medical_red'; const mins = r.type === 'Blood bin' ? 15 : 12; adminCards.push({ id: Date.now(), type: r.type, out: {...r.out, status: s}, in: r.in, posId: r.posId, matchTime: matchTime, pcTime: pcTime, remainingMs: mins * 60000, nextAction: 'Return' }); } else if(r.type === 'Injury / F') { s = 'medical_red'; }
+                const outPlayer = {...r.out, status: s}; const idx = benchPlayers.indexOf(null); if (idx !== -1) benchPlayers[idx] = outPlayer; else benchPlayers.push(outPlayer);
+            }
+            f.player = r.in;
+            logs.unshift({ id: Date.now(), type: r.isFromAdmin ? `${r.adminType} (${r.type})` : r.type, matchTime: matchTime, pcTime: pcTime, out: r.out, in: r.in });
+        }
+        reservations = reservations.filter(x => x.id !== id); render();
     }
 
     function renderAdmin() {
         const el = document.getElementById('admin-list'); el.innerHTML = '';
         adminCards.forEach(c => {
             const div = document.createElement('div'); div.className = 'admin-card';
-            div.innerHTML = `${c.type} <span id="admin-time-${c.id}">${formatTime(c.remainingMs)}</span>`;
+            div.ondrop = e => { e.stopPropagation(); if (window.dragged) { const dp = window.dragged.source === 'field' ? window.dragged.item.player : window.dragged.p; if (dp) { if (!validateFR(c.out, dp, c.posId)) return; if (!validateCategory(c.out, dp)) return; saveHistory(); c.in = dp; c.benchIdx = window.dragged.source === 'bench' ? window.dragged.index : undefined; renderAdmin(); } } };
+            const displayTime = formatTime(c.remainingMs); const pOutName = c.out ? `#${c.out.no} ${c.out.name}` : '(NONE)'; const pInName = c.in ? `#${c.in.no} ${c.in.name}` : '(NONE)';
+            const outColor = getPlayerColorClass(c.out); const inColor = getPlayerColorClass(c.in);
+            if (['YELLOW','RED','OFR'].includes(c.type)) {
+                let content = `<button class="btn-delete" onclick="delItem('admin',${c.id})">×</button><div class="admin-header"><span style="font-weight:900;">${c.type}</span><span class="admin-times">${c.matchTime}/${c.pcTime}</span><span class="admin-countdown" id="admin-time-${c.id}">${displayTime}</span></div><div class="card-row"><span>OUT</span><b class="${outColor}">${pOutName}</b></div><div class="card-row in-row"><span>IN</span><b class="${inColor}">${pInName}</b></div>`;
+                if(c.type === 'OFR' && !c.ofrDecision) { content += `<div class="btn-group" style="grid-template-columns: 1fr 1fr; margin-top:4px;"><button onclick="setOfrDecision(${c.id},'YELLOW STAY')">YELLOW STAY</button><button onclick="setOfrDecision(${c.id},'RED UPGRADE')">RED UPGRADE</button></div>`; } 
+                else { const mode = (c.ofrDecision === 'RED UPGRADE' || c.type === 'RED') ? 'RED' : 'YELLOW'; content += `<div class="btn-group" style="grid-template-columns: repeat(3, 1fr);">${mode === 'YELLOW' ? `<button class="${c.nextAction==='Return'?'active-return':''}" onclick="setAdminNext(${c.id},'Return')">Return</button><button class="${c.nextAction==='Tactical'?'active-tactical':''}" onclick="setAdminNext(${c.id},'Tactical')">Tac</button><button class="${c.nextAction==='Injury'?'active-injury':''}" onclick="setAdminNext(${c.id},'Injury')">Inj</button>` : `<button style="grid-column: span 3;" class="${c.nextAction==='Replacement'?'active-tactical':''}" onclick="setAdminNext(${c.id},'Replacement')">Replacement</button>`}</div><button class="btn-go-res" onclick="returnToRes(${c.id})">Go to reservation</button>`; }
+                div.innerHTML = content;
+            } else {
+                let inner = `<button class="btn-delete" onclick="delItem('admin',${c.id})">×</button><div class="admin-header"><span style="font-weight:900;">${c.type}</span><span class="admin-times">${c.matchTime}/${c.pcTime}</span><span class="admin-countdown" id="admin-time-${c.id}">${displayTime}</span></div>`;
+                if (c.nextAction === 'Return') inner += `<div class="card-row"><span>OUT</span><b class="${inColor}">${pInName}</b></div><div class="card-row in-row"><span>IN</span><b class="${outColor}">${pOutName}</b></div>`;
+                else inner += `<div class="card-row"><span>STAY</span><b class="${outColor}">${pOutName}</b></div><div class="card-row"><span>FIELD</span><b class="${inColor}">${pInName} (Keep)</b></div>`;
+                inner += `<div class="btn-group" style="grid-template-columns: repeat(3, 1fr);"><button class="${c.nextAction==='Return'?'active-return':''}" onclick="setAdminNext(${c.id},'Return')">Return</button><button class="${c.nextAction==='Tactical'?'active-tactical':''}" onclick="setAdminNext(${c.id},'Tactical')">Tac</button><button class="${c.nextAction==='Injury'?'active-injury':''}" onclick="setAdminNext(${c.id},'Injury')">Inj</button></div><button class="btn-go-res" onclick="returnToRes(${c.id})">Go to reservation</button>`;
+                div.innerHTML = inner;
+            }
             el.appendChild(div);
         });
     }
 
-    function renderLogs() {
-        const el = document.getElementById('log-list'); el.innerHTML = '';
-        logs.forEach(l => {
-            const div = document.createElement('div'); div.className = 'log-item';
-            div.innerHTML = `[${l.matchTime}] ${l.type}: OUT#${l.out?.no} / IN#${l.in?.no}`;
-            el.appendChild(div);
-        });
-    }
-
-    function createReservation(outP, inP, posId, benchIndex, type) { 
-        reservations.push({ id: Date.now(), out: outP, in: inP, posId: posId, benchIdx: benchIndex, type: type, isFromAdmin: false }); 
-    }
+    function setAdminNext(id, act) { saveHistory(); const c = adminCards.find(x => x.id === id); if (!c) return; c.nextAction = act; if(['Tactical','Injury','Replacement'].includes(act) && !isMedicalType(c.type)) { renderAdmin(); openPlayerModal(id); } else { if (act === 'Return' && ['YELLOW','RED','OFR'].includes(c.type)) c.in = null; renderAdmin(); } }
     
-    function swapPlayers(sourceItem, targetItem) { 
-        const pA = sourceItem.player; const pB = targetItem.player; 
-        sourceItem.player = pB; targetItem.player = pA; 
-    }
-
-    function delItem(t, id) { if(t==='res') reservations = reservations.filter(x=>x.id!==id); render(); }
-    function saveHistory() { historyStack.push(JSON.stringify({fieldPositions, benchPlayers, reservations, adminCards, logs})); }
-    function undo() { if(historyStack.length) { const s = JSON.parse(historyStack.pop()); fieldPositions=s.fieldPositions; render(); } }
-
-    function isMedicalType(type) { return ['Blood bin', 'HIA', 'B / HIA'].includes(type); }
-
-    // Excel読み込み処理
-    document.body.addEventListener('drop', e => {
-        e.preventDefault();
-        const file = e.dataTransfer.files[0];
-        if (file && file.name.endsWith('.xlsx')) {
-            const reader = new FileReader();
-            reader.onload = ev => {
-                const wb = XLSX.read(new Uint8Array(ev.target.result), {type: 'array'});
-                const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1});
-                processExcel(data);
-            };
-            reader.readAsArrayBuffer(file);
-        }
-    });
-
-    function processExcel(data) {
-        if (data[0] && data[0][0]) document.getElementById('team-name-display').innerText = data[0][0];
-        benchPlayers = [];
-        for (let i = 2; i < data.length; i++) {
-            const row = data[i]; if (!row || !row[0]) continue;
-            const p = { id: 'P'+row[0], no: row[0], name: row[1], cat: row[2]||'', status: 'normal' };
-            if (p.no <= 15) fieldPositions[p.no-1].player = p;
-            else benchPlayers.push(p);
-        }
-        render();
-    }
-
-    function dropToRes(e) { e.preventDefault(); if (window.dragged?.source === 'field') { createReservation(window.dragged.item.player, null, window.dragged.item.posId, null, 'Tactical'); render(); } }
-    function dropToBenchArea(e) { e.preventDefault(); if (window.dragged?.source === 'field') { createReservation(window.dragged.item.player, null, window.dragged.item.posId, null, 'Temporary'); render(); } }
-
-    function showTimeEdit() { document.getElementById('time-edit-popup').style.display = 'block'; }
-    function hideTimeEdit() { document.getElementById('time-edit-popup').style.display = 'none'; }
-    function saveEditedTime() {
-        const m = parseInt(document.getElementById('edit-min').value)||0;
-        const s = parseInt(document.getElementById('edit-sec').value)||0;
-        elapsedTime = (m * 60 + s) * 1000;
-        hideTimeEdit(); render();
+    function setOfrDecision(id, d) { saveHistory(); const c = adminCards.find(x => x.id === id); if(!c) return; c.ofrDecision = d; logs.unshift({ id: Date.now(), type: `OFR DECISION: ${d}`, matchTime: formatTime(elapsedTime), pcTime: getPCNow(), out: c.out, isColor: true, reason: "" }); if(d === 'RED UPGRADE') { c.nextAction = 'Replacement'; c.remainingMs = 1200000; if([1,2,3].includes(c.posId)) frHistory[c.posId].push('OFR DECISION: RED UPGRADE'); render(); openPlayerModal(id); } else { c.nextAction = 'Return'; render(); } }
+    
+    function openPlayerModal(cid) { 
+        currentSelectionContext = cid; document.getElementById('modal-title').innerText = "Select Player"; document.getElementById('modal-body-content').innerHTML = "";
+        const list = document.getElementById('modal-player-list'); list.innerHTML = ''; const card = adminCards.find(x => x.id === cid); 
+        benchPlayers.forEach((p, idx) => { if (p !== null && !['rc', 'injury'].includes(p.status)) { const b = document.createElement('button'); b.className = 'modal-player-btn'; b.innerText = `#${p.no} ${p.name}`; b.onclick = () => { if (card) { if (!validateFR(card.out, p, card.posId)) return; if (!validateCategory(card.out, p)) return; card.in = p; card.benchIdx = idx; } closeModal(); renderAdmin(); }; list.appendChild(b); } }); 
+        document.getElementById('modal-overlay').style.display = 'flex'; 
     }
 
     function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
 
+    function returnToRes(id) { 
+        saveHistory(); const c = adminCards.find(x => x.id === id); if (!c) return; 
+        if (['YELLOW', 'RED', 'OFR'].includes(c.type) && ['Tactical', 'Injury', 'Replacement'].includes(c.nextAction) && !c.in) { alert("交代する選手を選択してください。"); return; } 
+        let outP, inP; if (c.nextAction === 'Return') { outP = c.in; inP = c.out; } else { outP = c.out; inP = c.in; } 
+        reservations.push({ id: Date.now(), out: outP, in: inP, posId: c.posId, benchIdx: c.benchIdx, type: c.nextAction === 'Replacement' ? 'Tactical' : c.nextAction, isFromAdmin: true, adminType: c.type, remainingMs: c.remainingMs, ofrDecision: c.ofrDecision }); 
+        adminCards = adminCards.filter(x => x.id !== id); render(); 
+    }
+
+    function formatTime(ms) { const s = Math.floor(Math.max(0, ms) / 1000); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
+    function delItem(t, id) { saveHistory(); if(t==='res') reservations = reservations.filter(x=>x.id!==id); else adminCards = adminCards.filter(x=>x.id!==id); render(); }
+    
+    function renderLogs() {
+        const el = document.getElementById('log-list'); el.innerHTML = '';
+        logs.forEach(l => {
+            const div = document.createElement('div'); let cls = 'log-item';
+            if (l.isPeriod) { cls += ' log-period'; div.innerHTML = `<b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})`; }
+            else {
+                if (l.isColor) { if (l.type.includes('YELLOW')) cls += ' log-yc'; else if (l.type.includes('RED')) cls += ' log-rc'; else if (l.type.includes('OFR')) cls += ' log-ofr'; div.onclick = () => openReasonModal(l.id); }
+                div.innerHTML = `<b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})<br>OUT:#${l.out?.no || '--'} ${l.out?.name || '(NONE)'}${l.in ? `<br>IN:#${l.in.no} ${l.in.name}` : ''}${l.reason ? `<span class="log-reason-text">${l.reason}</span>` : ''}`;
+            }
+            div.className = cls; el.appendChild(div);
+        });
+    }
+
+    function openReasonModal(logId) {
+        const log = logs.find(x => x.id === logId); if(!log) return;
+        document.getElementById('modal-title').innerText = "Log Reason"; document.getElementById('modal-body-content').innerHTML = "";
+        const body = document.getElementById('modal-body-content');
+        body.innerHTML = `<textarea id=\"reason-input-area\" class=\"reason-edit-area\" placeholder=\"理由を入力してください\">${log.reason || ''}</textarea><button class=\"btn-edit-save\" style=\"width:100%;\" onclick=\"saveLogReason(${logId})\">SAVE</button>`;
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    function saveLogReason(logId) { const val = document.getElementById('reason-input-area').value; saveHistory(); const log = logs.find(x => x.id === logId); if(log) log.reason = val; closeModal(); renderLogs(); saveToStorage(); }
+
+    document.body.addEventListener('dragover', e => e.preventDefault());
+    document.body.addEventListener('drop', e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file && file.name.endsWith('.xlsx')) { const reader = new FileReader(); reader.onload = ev => { const wb = XLSX.read(new Uint8Array(ev.target.result), {type: 'array'}); processExcel(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1})); }; reader.readAsArrayBuffer(file); } });
+    setInterval(tick, 100);
 </script>
 </body>
 </html>
+<script>
+function allowDrop(e){e.preventDefault();}
+</script>
+
+<script>
+function handleBenchDrop(e){
+  e.preventDefault();
+  let playerId = e.dataTransfer.getData("text/plain");
+  if(!playerId && window.lastDraggedId){
+    playerId = window.lastDraggedId;
+  }
+  if(!playerId) return;
+  if(typeof addToReserve === "function"){
+    addToReserve(playerId);
+  }
+}
+</script>
