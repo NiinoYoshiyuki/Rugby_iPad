@@ -21,7 +21,6 @@
             --stopwatch-bg: #1e293b; --stopwatch-text: #34d399;
         }
         
-        /* iPad/タッチ操作のシステム干渉を防止する設定（見た目は変わりません） */
         * { -webkit-tap-highlight-color: transparent; }
         body { 
             font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); 
@@ -70,7 +69,7 @@
         
         .player-card { 
             height: 34px; margin-bottom: 4px; border: 1px solid var(--border-color); border-radius: 6px; display: flex; align-items: center; background: #fff; padding: 0 6px; font-weight: 700; font-size: 0.85rem; cursor: grab; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; 
-            -webkit-touch-callout: none; /* iPadでのメニューを無効化 */
+            -webkit-touch-callout: none;
         }
         .pos-label { width: 22px; color: var(--text-sub); font-size: 0.75rem; border-right: 1px solid #eee; margin-right: 8px; text-align: center; flex-shrink: 0; cursor: pointer; font-weight: 900; }
         .name-area { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; text-align: left; }
@@ -123,7 +122,6 @@
         .fr-hist-table th, .fr-hist-table td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
         .fr-hist-table th { background: #f8fafc; font-size: 0.75rem; color: var(--text-sub); }
 
-        /* iPad対応：ドラッグ時のプレビュー（見た目は変わりません） */
         .dnd-poly-ghost { opacity: 0.8 !important; background: #fff !important; border: 2px solid var(--bench-orange) !important; border-radius: 8px !important; }
     </style>
 </head>
@@ -210,12 +208,11 @@
     function initApp() {
         MobileDragDrop.polyfill({
             dragImageGhostCustomClassName: "dnd-poly-ghost",
-            holdToDrag: 200 // 200ms長押しでドラッグ開始
+            holdToDrag: 200
         });
         loadFromStorage();
     }
 
-    // --- 以降、ロジック部分はMaster04コピーと完全同一 ---
     let fieldPositions = Array.from({length: 15}, (_, i) => ({ posId: i+1, player: null }));
     let benchPlayers = [], reservations = [], adminCards = [], logs = [];
     let elapsedTime = 0, timerInterval = null, lastTick = Date.now();
@@ -366,8 +363,39 @@
     function redo() { if (redoStack.length === 0) return; historyStack.push(getCurrentState()); applyState(redoStack.pop()); }
     function applyState(stateStr) { const state = JSON.parse(stateStr); fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs; isSecondHalf = state.isSecondHalf || false; elapsedTime = state.elapsedTime || 0; frHistory = state.frHistory || { 1: [], 2: [], 3: [] }; render(); }
 
-    function dropToRes(e) { e.preventDefault(); if (window.dragged?.source === 'field') { if (!validateFR(window.dragged.item.player, null, window.dragged.item.posId)) return; saveHistory(); createCardReservation(window.dragged.item.player, window.dragged.item.posId); } }
-    function dropToBenchArea(e) { e.preventDefault(); if (window.dragged?.source === 'field') { const p = window.dragged.item.player; if (p && (p.status === 'rc' || p.status === 'injury')) return; if (!validateFR(p, null, window.dragged.item.posId)) return; saveHistory(); reservations.push({ id: Date.now(), out: p, in: null, posId: window.dragged.item.posId, type: 'Temporary', isFromAdmin: false, isCard: false }); render(); } }
+    function dropToRes(e) { 
+        e.preventDefault(); 
+        if (window.dragged?.source === 'field') { 
+            // 予約リストに直接ドラッグした場合は、従来通り予約カードを作成
+            if (!validateFR(window.dragged.item.player, null, window.dragged.item.posId)) return; 
+            saveHistory(); createCardReservation(window.dragged.item.player, window.dragged.item.posId); 
+        } 
+    }
+    
+    // 修正：FIELDからBENCHのカラム（空白部分）へドロップした際の即時OUT
+    function dropToBenchArea(e) { 
+        e.preventDefault(); 
+        if (window.dragged?.source === 'field') { 
+            const sourceItem = window.dragged.item;
+            const p = sourceItem.player;
+            if (!p) return;
+            if (p.status === 'rc' || p.status === 'injury') return; 
+            if (!validateFR(p, null, sourceItem.posId)) return; 
+            
+            saveHistory();
+            const matchTime = formatTime(elapsedTime);
+            const pcTime = getPCNow();
+            
+            sourceItem.player = null;
+            const outPlayer = {...p, status: 'normal'}; 
+            const idx = benchPlayers.indexOf(null); 
+            if (idx !== -1) benchPlayers[idx] = outPlayer; 
+            else benchPlayers.push(outPlayer);
+            
+            logs.unshift({ id: Date.now(), type: 'OUT (Direct)', matchTime, pcTime, out: p, in: null });
+            render(); 
+        } 
+    }
 
     function processExcel(data) {
         saveHistory(); if (data[0] && data[0][0]) document.getElementById('team-name-display').innerText = data[0][0];
@@ -415,9 +443,42 @@
             const div = document.createElement('div'); div.className = 'player-card'; const p = item.player;
             div.innerHTML = `<span class="pos-label" ${[1,2,3].includes(item.posId) ? `onclick="clearFRHistByPos(${item.posId})"` : ""}>${item.posId}</span><span class="name-area color-normal">#${p ? p.no+' '+p.name : '---'}</span>${p?.cat ? `<span class=\"attr-tag cat-tag\">${p.cat}</span>` : ''}${p?.fr?.length ? `<span class=\"attr-tag fr-tag\">${p.fr.join('')}</span>` : ''}`;
             div.draggable = !!p; div.ondragstart = () => { if(p) window.dragged = {source:'field', item}; }; div.ondragover = e => e.preventDefault();
-            div.ondrop = e => { e.stopPropagation(); if (window.dragged?.source === 'bench') { if (!validateFR(item.player, window.dragged.p, item.posId)) return; if (!validateCategory(item.player, window.dragged.p)) return; saveHistory(); createReservation(item.player, window.dragged.p, item.posId, window.dragged.index, p === null ? 'Temporary' : 'Tactical'); } else if (window.dragged?.source === 'field') { if (!validateFR(item.player, window.dragged.item.player, item.posId)) return; if (!validateFR(window.dragged.item.player, item.player, window.dragged.item.posId)) return; saveHistory(); swapPlayers(window.dragged.item, item); } };
+            
+            // フィールドの各ポジション枠へのドロップ
+            div.ondrop = e => { 
+                e.stopPropagation(); 
+                if (window.dragged?.source === 'bench') { 
+                    const benchP = window.dragged.p;
+                    const benchIdx = window.dragged.index;
+                    
+                    if (item.player === null) {
+                        // 修正：フィールドの空白枠へドロップした場合は即時IN
+                        if (!validateFR(null, benchP, item.posId)) return; 
+                        if (!validateCategory(null, benchP)) return; 
+                        saveHistory(); 
+                        const matchTime = formatTime(elapsedTime);
+                        const pcTime = getPCNow();
+                        benchPlayers[benchIdx] = null;
+                        item.player = benchP;
+                        logs.unshift({ id: Date.now(), type: 'IN (Direct)', matchTime, pcTime, out: null, in: benchP });
+                        render();
+                    } else {
+                        // 修正：既に選手がいる場合は従来通り予約カード作成フロー
+                        if (!validateFR(item.player, benchP, item.posId)) return; 
+                        if (!validateCategory(item.player, benchP)) return; 
+                        saveHistory(); 
+                        createReservation(item.player, benchP, item.posId, benchIdx, 'Tactical'); 
+                    }
+                } else if (window.dragged?.source === 'field') { 
+                    // フィールド間移動（既存のまま）
+                    if (!validateFR(item.player, window.dragged.item.player, item.posId)) return; 
+                    if (!validateFR(window.dragged.item.player, item.player, window.dragged.item.posId)) return; 
+                    saveHistory(); swapPlayers(window.dragged.item, item); 
+                } 
+            };
             fl.appendChild(div);
         });
+
         const bl = document.getElementById('bench-list'); bl.innerHTML = '';
         benchPlayers.forEach((p, idx) => {
             if (p === null) return;
@@ -425,7 +486,19 @@
             const div = document.createElement('div'); const isDisabled = ['injury', 'rc'].includes(p.status); div.className = `player-card ${p.status === 'injury' ? 'bg-injury' : ''} ${statusClass}`;
             div.innerHTML = `<span class="name-area ${getPlayerColorClass(p)}">#${p.no} ${p.name}</span>${p.cat ? `<span class="attr-tag cat-tag">${p.cat}</span>` : ''}${p.fr?.length ? `<span class="attr-tag fr-tag">${p.fr.join('')}</span>` : ''}`;
             div.draggable = !isDisabled; div.ondragstart = () => { if(!isDisabled) window.dragged = {source:'bench', p, index: idx}; }; div.ondragover = e => { if(!isDisabled) e.preventDefault(); };
-            div.ondrop = e => { e.stopPropagation(); if (isDisabled) return; if (window.dragged?.source === 'field') { if (!validateFR(window.dragged.item.player, p, window.dragged.item.posId)) return; if (!validateCategory(window.dragged.item.player, p)) return; saveHistory(); createReservation(window.dragged.item.player, p, window.dragged.item.posId, idx, 'Tactical'); } };
+            
+            // 既存の選手カードの上に落とした場合は、従来通りの予約フロー
+            div.ondrop = e => { 
+                e.stopPropagation(); 
+                if (isDisabled) return; 
+                if (window.dragged?.source === 'field') { 
+                    const fPos = window.dragged.item;
+                    if (!validateFR(fPos.player, p, fPos.posId)) return; 
+                    if (!validateCategory(fPos.player, p)) return; 
+                    saveHistory();
+                    createReservation(fPos.player, p, fPos.posId, idx, 'Tactical');
+                } 
+            };
             bl.appendChild(div);
         });
         checkFRCompliance(); updateCatDisplay(); renderRes(); renderAdmin(); renderLogs(); saveToStorage(); 
@@ -460,7 +533,6 @@
         const cleanupBench = (p) => { if (p) benchPlayers = benchPlayers.map(x => (x && x.id === p.id) ? null : x); };
         cleanupBench(r.out); cleanupBench(r.in);
 
-        // FR履歴記録：Tactical, SWAP, Return, Temporary は除外
         if ([1, 2, 3].includes(r.posId)) {
             const forbidden = ['SWAP', 'Temporary', 'Tactical', 'Return'];
             if (!forbidden.includes(r.type)) {
@@ -516,7 +588,6 @@
     }
 
     function setAdminNext(id, act) { saveHistory(); const c = adminCards.find(x => x.id === id); if (!c) return; c.nextAction = act; if(['Tactical','Injury','Replacement'].includes(act) && !isMedicalType(c.type)) { renderAdmin(); openPlayerModal(id); } else { if (act === 'Return' && ['YELLOW','RED','OFR'].includes(c.type)) c.in = null; renderAdmin(); } }
-    
     function setOfrDecision(id, d) { saveHistory(); const c = adminCards.find(x => x.id === id); if(!c) return; c.ofrDecision = d; logs.unshift({ id: Date.now(), type: `OFR DECISION: ${d}`, matchTime: formatTime(elapsedTime), pcTime: getPCNow(), out: c.out, isColor: true, reason: "" }); if(d === 'RED UPGRADE') { c.nextAction = 'Replacement'; c.remainingMs = 1200000; if([1,2,3].includes(c.posId)) frHistory[c.posId].push('OFR DECISION: RED UPGRADE'); render(); openPlayerModal(id); } else { c.nextAction = 'Return'; render(); } }
     
     function openPlayerModal(cid) { 
@@ -546,7 +617,7 @@
             if (l.isPeriod) { cls += ' log-period'; div.innerHTML = `<b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})`; }
             else {
                 if (l.isColor) { if (l.type.includes('YELLOW')) cls += ' log-yc'; else if (l.type.includes('RED')) cls += ' log-rc'; else if (l.type.includes('OFR')) cls += ' log-ofr'; div.onclick = () => openReasonModal(l.id); }
-                div.innerHTML = `<b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})<br>OUT:#${l.out?.no || '--'} ${l.out?.name || '(NONE)'}${l.in ? `<br>IN:#${l.in.no} ${l.in.name}` : ''}${l.reason ? `<span class="log-reason-text">${l.reason}</span>` : ''}`;
+                div.innerHTML = `<b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})<br>OUT:#${l.out?.no || '--'} ${l.out?.name || '(NONE)'}${l.in ? `<br>IN:#${l.in.no} ${l.in.name}` : ''}${l.reason ? `<span class=\"log-reason-text\">${l.reason}</span>` : ''}`;
             }
             div.className = cls; el.appendChild(div);
         });
@@ -568,20 +639,3 @@
 </script>
 </body>
 </html>
-<script>
-function allowDrop(e){e.preventDefault();}
-</script>
-
-<script>
-function handleBenchDrop(e){
-  e.preventDefault();
-  let playerId = e.dataTransfer.getData("text/plain");
-  if(!playerId && window.lastDraggedId){
-    playerId = window.lastDraggedId;
-  }
-  if(!playerId) return;
-  if(typeof addToReserve === "function"){
-    addToReserve(playerId);
-  }
-}
-</script>
