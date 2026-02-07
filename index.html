@@ -42,7 +42,10 @@
         .cat-limit-popup { display: none; position: absolute; top: 0; right: 230px; background: #fff; border: 3px solid var(--text-main); border-radius: 10px; padding: 15px; z-index: 6600; box-shadow: 0 10px 30px rgba(0,0,0,0.3); width: 200px; }
         .cat-limit-popup input { width: 40px; padding: 4px; font-size: 1rem; font-weight: 900; text-align: center; }
         .cat-limit-popup label { font-size: 11px; font-weight: 800; }
-        #uncontested-alert { display: none; background: #ef4444; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 900; font-size: 0.9rem; margin-right: 10px; white-space: nowrap; }
+
+        /* Uncontested Alert Styles */
+        #uncontested-alert { display: none; background: #ef4444; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 900; font-size: 0.9rem; margin-right: 10px; white-space: nowrap; transition: background-color 0.3s; }
+        .alert-safe { background: var(--field-green) !important; }
         .blink-alert { animation: blink 1s infinite; }
         @keyframes blink { 0% {opacity: 1;} 50% {opacity: 0.6;} 100% {opacity: 1;} }
 
@@ -64,7 +67,12 @@
         main { display: flex; gap: 10px; padding: 10px; flex-grow: 1; overflow: hidden; }
         .column { background: var(--bg-column); border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column; overflow: hidden; height: 100%; width: 280px; flex-shrink: 0; }
         .col-res-admin { width: 440px; }
-        h2 { font-size: 0.8rem; padding: 8px; background: #f8fafc; margin: 0; text-align: center; font-weight: 900; color: var(--text-sub); border-bottom: 1px solid var(--border-color); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; }
+        
+        h2 { font-size: 0.8rem; padding: 8px; background: #f8fafc; margin: 0; text-align: center; font-weight: 900; color: var(--text-sub); border-bottom: 1px solid var(--border-color); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; position: relative; }
+        .btn-direct-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 900; cursor: pointer; border: 1px solid var(--border-color); transition: 0.2s; }
+        .direct-off { background: #e2e8f0; color: #64748b; }
+        .direct-on { background: var(--field-green); color: #fff; border-color: var(--field-green); }
+
         .scroll-area { flex-grow: 1; overflow-y: auto; padding: 8px; -webkit-overflow-scrolling: touch; }
         
         .player-card { 
@@ -185,7 +193,11 @@
     </div>
     <div class="col-res-admin">
         <div class="column" style="height: 48%; width: 100%;" ondragover="e=>e.preventDefault()" ondrop="dropToRes(event)">
-            <h2>Reservations</h2><div id="res-list" class="scroll-area"></div>
+            <h2>
+                Reservations
+                <div id="direct-toggle" class="btn-direct-toggle direct-off" onclick="toggleDirectMode()">Direct OFF</div>
+            </h2>
+            <div id="res-list" class="scroll-area"></div>
         </div>
         <div class="column" style="height: 50%; width: 100%; margin-top: 2%;">
             <h2>Trackers</h2><div id="admin-list" class="scroll-area"></div>
@@ -204,7 +216,6 @@
 </div>
 
 <script>
-    // --- iPad対応用 初期化設定 ---
     function initApp() {
         MobileDragDrop.polyfill({
             dragImageGhostCustomClassName: "dnd-poly-ghost",
@@ -220,11 +231,25 @@
     let isSecondHalf = false;
     let catLimits = { abc: 4, c: 3 };
     let frHistory = { 1: [], 2: [], 3: [] };
+    let directMode = false;
 
     const STORAGE_KEY = "rugby_sub_manager_state_v430";
 
+    function toggleDirectMode() {
+        directMode = !directMode;
+        const btn = document.getElementById('direct-toggle');
+        if (directMode) {
+            btn.innerText = "Direct ON";
+            btn.className = "btn-direct-toggle direct-on";
+        } else {
+            btn.innerText = "Direct OFF";
+            btn.className = "btn-direct-toggle direct-off";
+        }
+        saveToStorage();
+    }
+
     function saveToStorage() {
-        const state = { fieldPositions, benchPlayers, reservations, adminCards, logs, elapsedTime, isSecondHalf, catLimits, frHistory, teamName: document.getElementById('team-name-display').innerText };
+        const state = { fieldPositions, benchPlayers, reservations, adminCards, logs, elapsedTime, isSecondHalf, catLimits, frHistory, directMode, teamName: document.getElementById('team-name-display').innerText };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
@@ -235,6 +260,11 @@
                 const state = JSON.parse(saved);
                 fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs;
                 elapsedTime = state.elapsedTime || 0; isSecondHalf = state.isSecondHalf || false; catLimits = state.catLimits || { abc: 4, c: 3 }; frHistory = state.frHistory || { 1: [], 2: [], 3: [] };
+                directMode = !!state.directMode;
+                if (directMode) {
+                    const btn = document.getElementById('direct-toggle');
+                    btn.innerText = "Direct ON"; btn.className = "btn-direct-toggle direct-on";
+                }
                 document.getElementById('team-name-display').innerText = state.teamName || "Drop Excel to Load Team";
                 document.getElementById('limit-abc').value = catLimits.abc; document.getElementById('limit-c').value = catLimits.c;
                 render();
@@ -357,22 +387,20 @@
         reservations.forEach(r => { if(r.isFromAdmin) { const el = document.getElementById(`res-time-${r.id}`); if(el) el.innerText = formatTime(r.remainingMs); }});
     }
 
-    function getCurrentState() { return JSON.stringify({ fieldPositions, benchPlayers, reservations, adminCards, logs, isSecondHalf, elapsedTime, frHistory }); }
+    function getCurrentState() { return JSON.stringify({ fieldPositions, benchPlayers, reservations, adminCards, logs, isSecondHalf, elapsedTime, frHistory, directMode }); }
     function saveHistory() { historyStack.push(getCurrentState()); if (historyStack.length > 50) historyStack.shift(); redoStack = []; }
     function undo() { if (historyStack.length === 0) return; redoStack.push(getCurrentState()); applyState(historyStack.pop()); }
     function redo() { if (redoStack.length === 0) return; historyStack.push(getCurrentState()); applyState(redoStack.pop()); }
-    function applyState(stateStr) { const state = JSON.parse(stateStr); fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs; isSecondHalf = state.isSecondHalf || false; elapsedTime = state.elapsedTime || 0; frHistory = state.frHistory || { 1: [], 2: [], 3: [] }; render(); }
+    function applyState(stateStr) { const state = JSON.parse(stateStr); fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs; isSecondHalf = state.isSecondHalf || false; elapsedTime = state.elapsedTime || 0; frHistory = state.frHistory || { 1: [], 2: [], 3: [] }; directMode = !!state.directMode; render(); }
 
     function dropToRes(e) { 
         e.preventDefault(); 
         if (window.dragged?.source === 'field') { 
-            // 予約リストに直接ドラッグした場合は、従来通り予約カードを作成
             if (!validateFR(window.dragged.item.player, null, window.dragged.item.posId)) return; 
             saveHistory(); createCardReservation(window.dragged.item.player, window.dragged.item.posId); 
         } 
     }
     
-    // 修正：FIELDからBENCHのカラム（空白部分）へドロップした際の即時OUT
     function dropToBenchArea(e) { 
         e.preventDefault(); 
         if (window.dragged?.source === 'field') { 
@@ -383,17 +411,19 @@
             if (!validateFR(p, null, sourceItem.posId)) return; 
             
             saveHistory();
-            const matchTime = formatTime(elapsedTime);
-            const pcTime = getPCNow();
-            
-            sourceItem.player = null;
-            const outPlayer = {...p, status: 'normal'}; 
-            const idx = benchPlayers.indexOf(null); 
-            if (idx !== -1) benchPlayers[idx] = outPlayer; 
-            else benchPlayers.push(outPlayer);
-            
-            logs.unshift({ id: Date.now(), type: 'OUT (Direct)', matchTime, pcTime, out: p, in: null });
-            render(); 
+            if (directMode) {
+                const matchTime = formatTime(elapsedTime);
+                const pcTime = getPCNow();
+                sourceItem.player = null;
+                const outPlayer = {...p, status: 'normal'}; 
+                const idx = benchPlayers.indexOf(null); 
+                if (idx !== -1) benchPlayers[idx] = outPlayer; 
+                else benchPlayers.push(outPlayer);
+                logs.unshift({ id: Date.now(), type: 'OUT (Direct)', matchTime, pcTime, out: p, in: null });
+                render(); 
+            } else {
+                createReservation(p, null, sourceItem.posId, null, 'Temporary');
+            }
         } 
     }
 
@@ -408,6 +438,7 @@
         fieldPositions = ps.filter(p => p.no <= 15).map((p, idx) => ({ posId: idx+1, player: p })); benchPlayers = ps.filter(p => p.no > 15); render();
     }
 
+    /* Modified for Uncontested Alert Coloring */
     function checkFRCompliance() {
         let isUncontested = false; let globalMinPlayers = 15;
         [1, 2, 3].forEach(posId => { const p = fieldPositions.find(fp => fp.posId === posId)?.player; if (!p || !p.fr || !p.fr.includes(String(posId))) { isUncontested = true; } });
@@ -421,9 +452,24 @@
                     else if (['YC', 'RC', 'OFR', 'OFR DECISION: RED UPGRADE'].includes(p1)) { if (['Injury / F', 'BLOOD', 'HIA', 'B / HIA'].includes(p2)) globalMinPlayers = Math.min(globalMinPlayers, 14); if (p2 === 'Injury') globalMinPlayers = Math.min(globalMinPlayers, 13); if (['YC', 'RC', 'OFR', 'OFR DECISION: RED UPGRADE'].includes(p2)) globalMinPlayers = Math.min(globalMinPlayers, 12); }
                 } else if (p1) { if (['YC', 'RC', 'OFR', 'OFR DECISION: RED UPGRADE'].includes(p1)) globalMinPlayers = Math.min(globalMinPlayers, 14); }
             }
-            let currentFieldCount = fieldPositions.filter(f => f.player !== null).length; alertEl.innerHTML = `Uncontested scrum (${globalMinPlayers} players)`; alertEl.style.display = 'block';
-            if (currentFieldCount > globalMinPlayers) alertEl.classList.add('blink-alert'); else alertEl.classList.remove('blink-alert');
-        } else { alertEl.style.display = 'none'; alertEl.classList.remove('blink-alert'); }
+            let currentFieldCount = fieldPositions.filter(f => f.player !== null).length; 
+            alertEl.innerHTML = `Uncontested scrum (${globalMinPlayers} players)`; 
+            alertEl.style.display = 'block';
+
+            if (currentFieldCount > globalMinPlayers) {
+                // 人数不足: 赤背景で点滅
+                alertEl.classList.add('blink-alert');
+                alertEl.classList.remove('alert-safe');
+            } else {
+                // 人数充足: 点滅停止し、緑背景へ
+                alertEl.classList.remove('blink-alert');
+                alertEl.classList.add('alert-safe');
+            }
+        } else { 
+            alertEl.style.display = 'none'; 
+            alertEl.classList.remove('blink-alert');
+            alertEl.classList.remove('alert-safe');
+        }
     }
 
     function validateFR(outP, inP, posId) {
@@ -444,7 +490,6 @@
             div.innerHTML = `<span class="pos-label" ${[1,2,3].includes(item.posId) ? `onclick="clearFRHistByPos(${item.posId})"` : ""}>${item.posId}</span><span class="name-area color-normal">#${p ? p.no+' '+p.name : '---'}</span>${p?.cat ? `<span class=\"attr-tag cat-tag\">${p.cat}</span>` : ''}${p?.fr?.length ? `<span class=\"attr-tag fr-tag\">${p.fr.join('')}</span>` : ''}`;
             div.draggable = !!p; div.ondragstart = () => { if(p) window.dragged = {source:'field', item}; }; div.ondragover = e => e.preventDefault();
             
-            // フィールドの各ポジション枠へのドロップ
             div.ondrop = e => { 
                 e.stopPropagation(); 
                 if (window.dragged?.source === 'bench') { 
@@ -452,25 +497,26 @@
                     const benchIdx = window.dragged.index;
                     
                     if (item.player === null) {
-                        // 修正：フィールドの空白枠へドロップした場合は即時IN
                         if (!validateFR(null, benchP, item.posId)) return; 
                         if (!validateCategory(null, benchP)) return; 
                         saveHistory(); 
-                        const matchTime = formatTime(elapsedTime);
-                        const pcTime = getPCNow();
-                        benchPlayers[benchIdx] = null;
-                        item.player = benchP;
-                        logs.unshift({ id: Date.now(), type: 'IN (Direct)', matchTime, pcTime, out: null, in: benchP });
-                        render();
+                        if (directMode) {
+                            const matchTime = formatTime(elapsedTime);
+                            const pcTime = getPCNow();
+                            benchPlayers[benchIdx] = null;
+                            item.player = benchP;
+                            logs.unshift({ id: Date.now(), type: 'IN (Direct)', matchTime, pcTime, out: null, in: benchP });
+                            render();
+                        } else {
+                            createReservation(null, benchP, item.posId, benchIdx, 'Temporary'); 
+                        }
                     } else {
-                        // 修正：既に選手がいる場合は従来通り予約カード作成フロー
                         if (!validateFR(item.player, benchP, item.posId)) return; 
                         if (!validateCategory(item.player, benchP)) return; 
                         saveHistory(); 
                         createReservation(item.player, benchP, item.posId, benchIdx, 'Tactical'); 
                     }
                 } else if (window.dragged?.source === 'field') { 
-                    // フィールド間移動（既存のまま）
                     if (!validateFR(item.player, window.dragged.item.player, item.posId)) return; 
                     if (!validateFR(window.dragged.item.player, item.player, window.dragged.item.posId)) return; 
                     saveHistory(); swapPlayers(window.dragged.item, item); 
@@ -487,7 +533,6 @@
             div.innerHTML = `<span class="name-area ${getPlayerColorClass(p)}">#${p.no} ${p.name}</span>${p.cat ? `<span class="attr-tag cat-tag">${p.cat}</span>` : ''}${p.fr?.length ? `<span class="attr-tag fr-tag">${p.fr.join('')}</span>` : ''}`;
             div.draggable = !isDisabled; div.ondragstart = () => { if(!isDisabled) window.dragged = {source:'bench', p, index: idx}; }; div.ondragover = e => { if(!isDisabled) e.preventDefault(); };
             
-            // 既存の選手カードの上に落とした場合は、従来通りの予約フロー
             div.ondrop = e => { 
                 e.stopPropagation(); 
                 if (isDisabled) return; 
