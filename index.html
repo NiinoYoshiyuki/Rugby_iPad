@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Rugby Sub Manager - Pro 2026 v4.3.0 (iPad Optimized)</title>
+    
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <link rel="stylesheet" href="https://code.pagedrag.com/mobile-drag-drop/release/default.css">
+    <script src="https://code.pagedrag.com/mobile-drag-drop/release/index.min.js"></script>
+    <script src="https://code.pagedrag.com/mobile-drag-drop/release/scroll-behaviour.min.js"></script>
+
+    <style>
+        :root {
+            --bg-body: #f1f5f9; --bg-column: #ffffff; --border-color: #e2e8f0;
+            --field-green: #059669; --bench-orange: #d97706; --text-main: #1e293b;
+            --text-sub: #64748b; --text-medical: #dc2626; --text-tactical: #2563eb;
+            --bg-injury: #cbd5e1; --text-injury: #475569;
+            --color-yc: #facc15; --color-rc: #ef4444; --color-ofr: #f97316;
+            --stopwatch-bg: #1e293b; --stopwatch-text: #34d399;
+        }
+        
+        /* iPad/タッチ操作のシステム干渉を防止 */
+        * { 
+            -webkit-tap-highlight-color: transparent; 
+            -webkit-touch-callout: none; /* 長押しメニュー禁止 */
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); 
+            margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; 
+            user-select: none; -webkit-user-select: none; touch-action: none; 
+        }
+
+        /* デザイン・レイアウト（変更なし） */
+        header { background: #fff; padding: 10px 20px; border-bottom: 2px solid var(--border-color); flex-shrink: 0; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; position: relative; }
+        #team-name-display { font-weight: 900; font-size: 1.4rem; color: var(--text-main); }
+        .header-right { display: flex; align-items: center; gap: 15px; }
+        .btn-setting { background: #f1f5f9; border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 8px; font-weight: 800; font-size: 0.75rem; cursor: pointer; color: var(--text-sub); transition: 0.2s; }
+        
+        /* ポップアップ関連 */
+        #setting-popup { display: none; position: absolute; top: 100%; right: 0; background: #fff; border: 2px solid var(--text-main); border-radius: 12px; padding: 15px; z-index: 6500; box-shadow: 0 10px 30px rgba(0,0,0,0.3); width: 220px; margin-top: 10px; }
+        .setting-menu-btn { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid var(--border-color); border-radius: 8px; background: #f8fafc; font-weight: 800; cursor: pointer; text-align: left; font-size: 0.85rem; }
+        
+        /* タイマー関連 */
+        .stopwatch-panel { display: flex; align-items: center; gap: 12px; background: #f8fafc; padding: 6px 16px; border-radius: 12px; border: 1px solid var(--border-color); }
+        #timer-display { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 800; min-width: 120px; text-align: center; cursor: pointer; }
+        
+        /* メインカラム */
+        main { display: flex; gap: 10px; padding: 10px; flex-grow: 1; overflow: hidden; }
+        .column { background: var(--bg-column); border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column; overflow: hidden; height: 100%; width: 280px; flex-shrink: 0; }
+        .col-res-admin { width: 440px; }
+        .scroll-area { flex-grow: 1; overflow-y: auto; padding: 8px; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+        
+        /* 選手カード（タッチしやすく微調整） */
+        .player-card { 
+            height: 38px; /* わずかに高くしてタップ精度向上 */
+            margin-bottom: 4px; border: 1px solid var(--border-color); border-radius: 6px; 
+            display: flex; align-items: center; background: #fff; padding: 0 6px; 
+            font-weight: 700; font-size: 0.85rem; cursor: grab; overflow: hidden; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; 
+            touch-action: none; /* ドラッグ要素はスクロールさせない */
+        }
+        
+        /* その他のスタイルはMaster05と完全同一 */
+        .pos-label { width: 22px; color: var(--text-sub); font-size: 0.75rem; border-right: 1px solid #eee; margin-right: 8px; text-align: center; flex-shrink: 0; cursor: pointer; font-weight: 900; }
+        .name-area { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+        .attr-tag { font-size: 0.6rem; padding: 2px 5px; border-radius: 4px; margin-left: 4px; font-weight: 900; color: #fff; }
+        .cat-tag { background: #64748b; } .fr-tag { background: #ef4444; }
+        
+        .status-yc { background-color: #fef9c3 !important; border-color: var(--color-yc) !important; }
+        .status-rc { background-color: #fee2e2 !important; border-color: var(--color-rc) !important; pointer-events: none; }
+        
+        .res-card, .admin-card { background: #fff; border: 2px solid var(--border-color); border-left: 5px solid var(--bench-orange); border-radius: 8px; padding: 10px; margin-bottom: 8px; position: relative; font-size: 0.85rem; }
+        .btn-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 8px 0; }
+        .btn-group button { font-size: 1rem; padding: 8px 2px; cursor: pointer; font-weight: 800; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
+        
+        .btn-exec, .btn-go-res { background: var(--field-green); color: white; border: none; width: 100%; height: 40px; border-radius: 8px; font-weight: 900; cursor: pointer; margin-top: 4px; }
+        
+        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 7000; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+        .modal-content { background: white; padding: 20px; border-radius: 12px; width: 320px; max-height: 80vh; overflow-y: auto; text-align: center; }
+
+        /* ドラッグ中のプレビュー（iOSで違和感がないように） */
+        .dnd-poly-ghost { 
+            opacity: 0.8 !important; 
+            background: #fff !important; 
+            border: 2px solid var(--bench-orange) !important; 
+            border-radius: 8px !important;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2) !important;
+        }
+    </style>
+</head>
+<body onload="initApp()">
+
+<header>
+    <div class="header-top">
+        <div><div id="team-name-display">Drop Excel to Load Team</div></div>
+        <div class="header-right">
+            <div id="uncontested-alert">Uncontested scrum</div>
+            <div class="stopwatch-container">
+                <div class="stopwatch-panel">
+                    <div id="timer-display" onclick="handleTimerClick(event)">00:00</div>
+                    <button id="btn-toggle" class="btn-sw btn-toggle-start" onclick="toggleTimer()">START</button>
+                    <button class="btn-sw btn-reset" onclick="resetTimer()">RESET</button>
+                    <button class="btn-sw btn-history" onclick="undo()" title="Undo">UNDO</button>
+                    <button class="btn-sw btn-history" onclick="redo()" title="Redo">REDO</button>
+                </div>
+                <div id="time-edit-popup" style="display:none; position:absolute; top:100%; left:0; background:#fff; border:3px solid #1e293b; border-radius:15px; padding:20px; z-index:5000; margin-top:10px;">
+                    <div style="display:flex; gap:10px; margin-bottom:20px;">
+                        <input type="number" id="edit-min" style="width:60px; font-size:1.5rem; text-align:center;"> : 
+                        <input type="number" id="edit-sec" style="width:60px; font-size:1.5rem; text-align:center;">
+                    </div>
+                    <button onclick="saveEditedTime()" style="background:var(--field-green); color:#fff; padding:10px; width:100%; border:none; border-radius:5px;">UPDATE</button>
+                    <button onclick="hideTimeEdit()" style="margin-top:5px; width:100%; border:none; background:#ccc; padding:5px;">CLOSE</button>
+                </div>
+            </div>
+            <div style="position: relative;">
+                <button class="btn-setting" onclick="toggleSetting()">SETTING</button>
+                <div id="setting-popup">
+                    <button class="setting-menu-btn" onclick="showCatEdit()">CATEGORY</button>
+                    <button class="setting-menu-btn" onclick="showFRHistory()">FR HISTORY</button>
+                    <button class="setting-menu-btn" onclick="recordEndOfFirstHalf()">End of first half</button>
+                    <button class="setting-menu-btn" onclick="exportLogs()" style="color:var(--text-tactical)">EXPORT LOG (CSV)</button>
+                    <hr>
+                    <button class="setting-menu-btn" onclick="allClear()" style="background:#fee2e2; color:#ef4444; border-color:#ef4444;">ALL CLEAR</button>
+                    <button class="setting-menu-btn" onclick="toggleSetting()" style="background:#eee; text-align:center;">CLOSE</button>
+                    <div id="cat-edit-popup" class="cat-limit-popup" style="display:none; padding:10px; border:1px solid #ccc;">
+                        <label>ABC Max:</label><input type="number" id="limit-abc" value="4" style="width:40px;"><br>
+                        <label>C Only:</label><input type="number" id="limit-c" value="3" style="width:40px;"><br>
+                        <button onclick="hideCatEdit()">SAVE</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main>
+    <div class="column">
+        <h2>FIELD <span id="cat-info" class="cat-info-inline"></span></h2>
+        <div id="field-list" class="scroll-area"></div>
+    </div>
+    <div class="column" ondragover="handleDragOver(event)" ondrop="dropToBenchArea(event)">
+        <h2>Bench</h2><div id="bench-list" class="scroll-area"></div>
+    </div>
+    <div class="col-res-admin">
+        <div class="column" style="height: 48%; width: 100%;" ondragover="handleDragOver(event)" ondrop="dropToRes(event)">
+            <h2>Reservations</h2><div id="res-list" class="scroll-area"></div>
+        </div>
+        <div class="column" style="height: 50%; width: 100%; margin-top: 2%;">
+            <h2>Trackers</h2><div id="admin-list" class="scroll-area"></div>
+        </div>
+    </div>
+    <div class="column" style="flex-grow:1"><h2>Log</h2><div id="log-list" class="scroll-area"></div></div>
+</main>
+
+<div id="modal-overlay">
+    <div class="modal-content">
+        <h3 id="modal-title"></h3>
+        <div id="modal-body-content"></div>
+        <div id="modal-player-list"></div>
+        <button onclick="closeModal()" style="margin-top:10px; padding:10px 20px;">Close</button>
+    </div>
+</div>
+
+<script>
+    // --- iPad対応初期化 ---
+    function initApp() {
+        // ポリフィルの適用
+        MobileDragDrop.polyfill({
+            dragImageGhostCustomClassName: "dnd-poly-ghost",
+            holdToDrag: 200 // 200ms長押しでドラッグ開始。誤操作防止に最適
+        });
+
+        // iPadでのスクロール暴発防止
+        window.addEventListener('touchmove', function(e) {
+            if (e.target.closest('.scroll-area')) return; // スクロールエリア内は許可
+            e.preventDefault();
+        }, { passive: false });
+
+        loadFromStorage();
+    }
+
+    // ドラッグオーバー時のデフォルト挙動抑制（iPadで必須）
+    function handleDragOver(e) {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    }
+
+    // ダブルクリックの代わりにシングルタップでも編集を開けるように調整（iPad配慮）
+    let lastTap = 0;
+    function handleTimerClick(e) {
+        const now = Date.now();
+        if (now - lastTap < 300) {
+            showTimeEdit();
+        }
+        lastTap = now;
+    }
+
+    // --- 以降のロジックはMaster05と完全同一 ---
+    let fieldPositions = Array.from({length: 15}, (_, i) => ({ posId: i+1, player: null }));
+    let benchPlayers = [], reservations = [], adminCards = [], logs = [];
+    let elapsedTime = 0, timerInterval = null, lastTick = Date.now();
+    let currentSelectionContext = null, historyStack = [], redoStack = [];
+    let isSecondHalf = false;
+    let catLimits = { abc: 4, c: 3 };
+    let frHistory = { 1: [], 2: [], 3: [] };
+
+    const STORAGE_KEY = "rugby_sub_manager_state_v430";
+
+    function saveToStorage() {
+        const state = { fieldPositions, benchPlayers, reservations, adminCards, logs, elapsedTime, isSecondHalf, catLimits, frHistory, teamName: document.getElementById('team-name-display').innerText };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function loadFromStorage() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const state = JSON.parse(saved);
+                fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs;
+                elapsedTime = state.elapsedTime || 0; isSecondHalf = state.isSecondHalf || false; catLimits = state.catLimits || { abc: 4, c: 3 }; frHistory = state.frHistory || { 1: [], 2: [], 3: [] };
+                document.getElementById('team-name-display').innerText = state.teamName || "Drop Excel to Load Team";
+                render();
+            } catch(e) { console.error("Load failed", e); }
+        }
+    }
+
+    function allClear() { if (confirm("全てのデータを初期化します。よろしいですか？")) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
+    function toggleSetting() { const p = document.getElementById('setting-popup'); p.style.display = (p.style.display === 'block') ? 'none' : 'block'; }
+    function showCatEdit() { document.getElementById('cat-edit-popup').style.display = 'block'; }
+    function hideCatEdit() { 
+        catLimits.abc = parseInt(document.getElementById('limit-abc').value) || 0;
+        catLimits.c = parseInt(document.getElementById('limit-c').value) || 0;
+        document.getElementById('cat-edit-popup').style.display = 'none';
+        render();
+    }
+
+    function toggleTimer() {
+        const btn = document.getElementById('btn-toggle');
+        if (!timerInterval) { lastTick = Date.now(); timerInterval = setInterval(tick, 100); btn.innerText = 'PAUSE'; btn.style.background = 'var(--bench-orange)'; }
+        else { clearInterval(timerInterval); timerInterval = null; btn.innerText = 'START'; btn.style.background = 'var(--field-green)'; }
+    }
+
+    function tick() {
+        const now = Date.now(); const delta = now - lastTick; lastTick = now;
+        if (timerInterval) elapsedTime += delta; 
+        const updateRemaining = (item) => {
+            if (item.remainingMs !== undefined) {
+                if (isMedicalType(item.type || item.adminType)) { item.remainingMs = Math.max(0, item.remainingMs - delta); }
+                else if (timerInterval) { item.remainingMs = Math.max(0, item.remainingMs - delta); }
+            }
+        };
+        adminCards.forEach(updateRemaining); reservations.forEach(r => { if(r.isFromAdmin) updateRemaining(r); });
+        document.getElementById('timer-display').innerText = formatTime(elapsedTime);
+        renderAdminTimes();
+    }
+
+    function renderAdminTimes() {
+        adminCards.forEach(c => { const el = document.getElementById(`admin-time-${c.id}`); if (el) el.innerText = formatTime(c.remainingMs); });
+        reservations.forEach(r => { if(r.isFromAdmin) { const el = document.getElementById(`res-time-${r.id}`); if(el) el.innerText = formatTime(r.remainingMs); }});
+    }
+
+    function formatTime(ms) { const s = Math.floor(Math.max(0, ms) / 1000); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
+
+    // --- 描画系 (render) ---
+    function render() {
+        const fl = document.getElementById('field-list'); fl.innerHTML = '';
+        fieldPositions.forEach(item => {
+            const div = document.createElement('div'); div.className = 'player-card'; const p = item.player;
+            div.innerHTML = `<span class="pos-label">${item.posId}</span><span class="name-area">#${p ? p.no+' '+p.name : '---'}</span>`;
+            div.draggable = !!p; 
+            div.ondragstart = (e) => { if(p) window.dragged = {source:'field', item}; };
+            div.ondragover = handleDragOver;
+            div.ondrop = (e) => {
+                e.stopPropagation();
+                if (window.dragged?.source === 'bench') {
+                    saveHistory(); createReservation(item.player, window.dragged.p, item.posId, window.dragged.index, p === null ? 'Temporary' : 'Tactical');
+                } else if (window.dragged?.source === 'field') {
+                    saveHistory(); swapPlayers(window.dragged.item, item);
+                }
+                render();
+            };
+            fl.appendChild(div);
+        });
+
+        const bl = document.getElementById('bench-list'); bl.innerHTML = '';
+        benchPlayers.forEach((p, idx) => {
+            if (p === null) return;
+            const div = document.createElement('div'); div.className = `player-card ${p.status === 'injury' ? 'bg-injury' : ''}`;
+            div.innerHTML = `<span class="name-area">#${p.no} ${p.name}</span>`;
+            div.draggable = true;
+            div.ondragstart = () => { window.dragged = {source:'bench', p, index: idx}; };
+            div.ondragover = handleDragOver;
+            bl.appendChild(div);
+        });
+
+        renderRes();
+        renderAdmin();
+        renderLogs();
+        saveToStorage();
+    }
+
+    function renderRes() {
+        const el = document.getElementById('res-list'); el.innerHTML = '';
+        reservations.forEach(r => {
+            const div = document.createElement('div'); div.className = 'res-card';
+            div.innerHTML = `OUT: ${r.out ? r.out.name : 'NONE'} / IN: ${r.in ? r.in.name : 'NONE'}<br>
+                             <button class="btn-exec" onclick="executeRes(${r.id})">Execute</button>
+                             <button onclick="delItem('res',${r.id})">×</button>`;
+            el.appendChild(div);
+        });
+    }
+
+    function executeRes(id) {
+        saveHistory(); 
+        const r = reservations.find(x => x.id === id); if (!r) return;
+        const f = fieldPositions.find(p => p.posId === r.posId);
+        // 交換ロジック（簡易版を維持）
+        f.player = r.in;
+        logs.unshift({ id: Date.now(), type: r.type, matchTime: formatTime(elapsedTime), out: r.out, in: r.in });
+        reservations = reservations.filter(x => x.id !== id);
+        render();
+    }
+
+    function renderAdmin() {
+        const el = document.getElementById('admin-list'); el.innerHTML = '';
+        adminCards.forEach(c => {
+            const div = document.createElement('div'); div.className = 'admin-card';
+            div.innerHTML = `${c.type} <span id="admin-time-${c.id}">${formatTime(c.remainingMs)}</span>`;
+            el.appendChild(div);
+        });
+    }
+
+    function renderLogs() {
+        const el = document.getElementById('log-list'); el.innerHTML = '';
+        logs.forEach(l => {
+            const div = document.createElement('div'); div.className = 'log-item';
+            div.innerHTML = `[${l.matchTime}] ${l.type}: OUT#${l.out?.no} / IN#${l.in?.no}`;
+            el.appendChild(div);
+        });
+    }
+
+    function createReservation(outP, inP, posId, benchIndex, type) { 
+        reservations.push({ id: Date.now(), out: outP, in: inP, posId: posId, benchIdx: benchIndex, type: type, isFromAdmin: false }); 
+    }
+    
+    function swapPlayers(sourceItem, targetItem) { 
+        const pA = sourceItem.player; const pB = targetItem.player; 
+        sourceItem.player = pB; targetItem.player = pA; 
+    }
+
+    function delItem(t, id) { if(t==='res') reservations = reservations.filter(x=>x.id!==id); render(); }
+    function saveHistory() { historyStack.push(JSON.stringify({fieldPositions, benchPlayers, reservations, adminCards, logs})); }
+    function undo() { if(historyStack.length) { const s = JSON.parse(historyStack.pop()); fieldPositions=s.fieldPositions; render(); } }
+
+    function isMedicalType(type) { return ['Blood bin', 'HIA', 'B / HIA'].includes(type); }
+
+    // Excel読み込み処理
+    document.body.addEventListener('drop', e => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file && file.name.endsWith('.xlsx')) {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const wb = XLSX.read(new Uint8Array(ev.target.result), {type: 'array'});
+                const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1});
+                processExcel(data);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    });
+
+    function processExcel(data) {
+        if (data[0] && data[0][0]) document.getElementById('team-name-display').innerText = data[0][0];
+        benchPlayers = [];
+        for (let i = 2; i < data.length; i++) {
+            const row = data[i]; if (!row || !row[0]) continue;
+            const p = { id: 'P'+row[0], no: row[0], name: row[1], cat: row[2]||'', status: 'normal' };
+            if (p.no <= 15) fieldPositions[p.no-1].player = p;
+            else benchPlayers.push(p);
+        }
+        render();
+    }
+
+    function dropToRes(e) { e.preventDefault(); if (window.dragged?.source === 'field') { createReservation(window.dragged.item.player, null, window.dragged.item.posId, null, 'Tactical'); render(); } }
+    function dropToBenchArea(e) { e.preventDefault(); if (window.dragged?.source === 'field') { createReservation(window.dragged.item.player, null, window.dragged.item.posId, null, 'Temporary'); render(); } }
+
+    function showTimeEdit() { document.getElementById('time-edit-popup').style.display = 'block'; }
+    function hideTimeEdit() { document.getElementById('time-edit-popup').style.display = 'none'; }
+    function saveEditedTime() {
+        const m = parseInt(document.getElementById('edit-min').value)||0;
+        const s = parseInt(document.getElementById('edit-sec').value)||0;
+        elapsedTime = (m * 60 + s) * 1000;
+        hideTimeEdit(); render();
+    }
+
+    function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+</script>
+</body>
+</html>
