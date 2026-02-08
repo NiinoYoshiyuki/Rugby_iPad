@@ -25,7 +25,7 @@
         body { 
             font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); 
             margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; 
-            user-select: none; -webkit-user-select: none; touch-action: manipulation; 
+            user-select: none; -webkit-user-select: none; touch-action: none; 
         }
 
         header { background: #fff; padding: 10px 20px; border-bottom: 2px solid var(--border-color); flex-shrink: 0; }
@@ -76,7 +76,7 @@
         
         .player-card { 
             height: 34px; margin-bottom: 4px; border: 1px solid var(--border-color); border-radius: 6px; display: flex; align-items: center; background: #fff; padding: 0 6px; font-weight: 700; font-size: 0.85rem; cursor: grab; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; 
-            -webkit-touch-callout: none;touch-action: manipulation;
+            -webkit-touch-callout: none;
         }
         .pos-label { width: 22px; color: var(--text-sub); font-size: 0.75rem; border-right: 1px solid #eee; margin-right: 8px; text-align: center; flex-shrink: 0; cursor: pointer; font-weight: 900; }
         .name-area { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; text-align: left; }
@@ -116,7 +116,7 @@
         
         .log-item { font-size: 11px; border-bottom: 1px solid #eee; padding: 6px; line-height: 1.4; border-radius: 4px; margin-bottom: 2px; position: relative; padding-right: 35px; }
         .log-yc { background-color: var(--color-yc); color: #000; cursor: pointer; }
-        .log-rc { background-color: var(--color-rc); color: #fff; cursor: pointer; }
+        .log-rc { background-color: var(--color-rc) !important; color: #fff !important; cursor: pointer; }
         .log-ofr { background-color: var(--color-ofr); color: #fff; cursor: pointer; }
         .log-period { color: #dc2626; font-weight: 900; }
         .log-reason-text { font-style: italic; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 2px; display: block; margin-top: 2px; }
@@ -189,11 +189,11 @@
         <h2>FIELD <span id="cat-info" class="cat-info-inline">A2+B+C: 0/4 | C: 0/3</span></h2>
         <div id="field-list" class="scroll-area"></div>
     </div>
-    <div class="column" ondragover="e=>e.preventDefault()" ondrop="dropToBenchArea(event)">
+    <div class="column" ondragover="handleDragOver(event)" ondrop="dropToBenchArea(event)">
         <h2>Bench</h2><div id="bench-list" class="scroll-area"></div>
     </div>
     <div class="col-res-admin">
-        <div class="column" style="height: 48%; width: 100%;" ondragover="e=>e.preventDefault()" ondrop="dropToRes(event)">
+        <div class="column" style="height: 48%; width: 100%;" ondragover="handleDragOver(event)" ondrop="dropToRes(event)">
             <h2>
                 Reservations
                 <div id="direct-toggle" class="btn-direct-toggle direct-off" onclick="toggleDirectMode()">Direct OFF</div>
@@ -218,11 +218,23 @@
 
 <script>
     function initApp() {
+        // iPad / Mobile support initialization
         MobileDragDrop.polyfill({
             dragImageGhostCustomClassName: "dnd-poly-ghost",
-            holdToDrag: 200
+            holdToDrag: 200 // 200ms hold starts drag on iPad
         });
+        
+        // Ensure scroll works during drag on iPad
+        window.addEventListener('touchmove', function() {}, {passive: false});
+        
         loadFromStorage();
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
     }
 
     let fieldPositions = Array.from({length: 15}, (_, i) => ({ posId: i+1, player: null }));
@@ -486,7 +498,9 @@
         fieldPositions.forEach(item => {
             const div = document.createElement('div'); div.className = 'player-card'; const p = item.player;
             div.innerHTML = `<span class="pos-label" ${[1,2,3].includes(item.posId) ? `onclick="clearFRHistByPos(${item.posId})"` : ""}>${item.posId}</span><span class="name-area color-normal">#${p ? p.no+' '+p.name : '---'}</span>${p?.cat ? `<span class=\"attr-tag cat-tag\">${p.cat}</span>` : ''}${p?.fr?.length ? `<span class=\"attr-tag fr-tag\">${p.fr.join('')}</span>` : ''}`;
-            div.draggable = !!p; div.ondragstart = () => { if(p) window.dragged = {source:'field', item}; }; div.ondragover = e => e.preventDefault();
+            div.draggable = !!p; 
+            div.ondragstart = (e) => { if(p) { window.dragged = {source:'field', item}; if(e.dataTransfer) e.dataTransfer.setData('text/plain', ''); } }; 
+            div.ondragover = handleDragOver;
             
             div.ondrop = e => { 
                 e.stopPropagation(); 
@@ -529,7 +543,9 @@
             let statusClass = p.status === 'yc' ? 'status-yc' : (p.status === 'rc' ? 'status-rc' : (p.status === 'ofr' ? 'status-ofr' : ''));
             const div = document.createElement('div'); const isDisabled = ['injury', 'rc'].includes(p.status); div.className = `player-card ${p.status === 'injury' ? 'bg-injury' : ''} ${statusClass}`;
             div.innerHTML = `<span class="name-area ${getPlayerColorClass(p)}">#${p.no} ${p.name}</span>${p.cat ? `<span class="attr-tag cat-tag">${p.cat}</span>` : ''}${p.fr?.length ? `<span class="attr-tag fr-tag">${p.fr.join('')}</span>` : ''}`;
-            div.draggable = !isDisabled; div.ondragstart = () => { if(!isDisabled) window.dragged = {source:'bench', p, index: idx}; }; div.ondragover = e => { if(!isDisabled) e.preventDefault(); };
+            div.draggable = !isDisabled; 
+            div.ondragstart = (e) => { if(!isDisabled) { window.dragged = {source:'bench', p, index: idx}; if(e.dataTransfer) e.dataTransfer.setData('text/plain', ''); } }; 
+            div.ondragover = (e) => { if(!isDisabled) handleDragOver(e); };
             
             div.ondrop = e => { 
                 e.stopPropagation(); 
@@ -615,6 +631,7 @@
         const el = document.getElementById('admin-list'); el.innerHTML = '';
         adminCards.forEach(c => {
             const div = document.createElement('div'); div.className = 'admin-card';
+            div.ondragover = handleDragOver;
             div.ondrop = e => { e.stopPropagation(); if (window.dragged) { const dp = window.dragged.source === 'field' ? window.dragged.item.player : window.dragged.p; if (dp) { if (!validateFR(c.out, dp, c.posId)) return; if (!validateCategory(c.out, dp)) return; saveHistory(); c.in = dp; c.benchIdx = window.dragged.source === 'bench' ? window.dragged.index : undefined; renderAdmin(); } } };
             const displayTime = formatTime(c.remainingMs); const pOutName = c.out ? `#${c.out.no} ${c.out.name}` : '(NONE)'; const pInName = c.in ? `#${c.in.no} ${c.in.name}` : '(NONE)';
             const outColor = getPlayerColorClass(c.out); const inColor = getPlayerColorClass(c.in);
