@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rugby Sub Manager - Pro 2026 v4.3.0 (iPad Support)</title>
+    <title>Rugby Sub Manager - Pro 2026 v4.3.1 (iPad Support)</title>
     
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     
@@ -43,7 +43,6 @@
         .cat-limit-popup input { width: 40px; padding: 4px; font-size: 1rem; font-weight: 900; text-align: center; }
         .cat-limit-popup label { font-size: 11px; font-weight: 800; }
 
-        /* Uncontested Alert Styles */
         #uncontested-alert { display: none; background: #ef4444; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 900; font-size: 0.9rem; margin-right: 10px; white-space: nowrap; transition: background-color 0.3s; }
         .alert-safe { background: var(--field-green) !important; }
         .blink-alert { animation: blink 1s infinite; }
@@ -115,12 +114,14 @@
         .admin-times { font-size: 0.75rem; color: var(--text-sub); font-family: monospace; }
         .admin-countdown { font-size: 1.1rem; color: var(--text-medical); font-weight: 900; font-family: 'JetBrains Mono'; }
         
-        .log-item { font-size: 11px; border-bottom: 1px solid #eee; padding: 6px; line-height: 1.4; border-radius: 4px; margin-bottom: 2px; }
+        .log-item { font-size: 11px; border-bottom: 1px solid #eee; padding: 6px; line-height: 1.4; border-radius: 4px; margin-bottom: 2px; position: relative; padding-right: 35px; }
         .log-yc { background-color: var(--color-yc); color: #000; cursor: pointer; }
         .log-rc { background-color: var(--color-rc); color: #fff; cursor: pointer; }
         .log-ofr { background-color: var(--color-ofr); color: #fff; cursor: pointer; }
         .log-period { color: #dc2626; font-weight: 900; }
         .log-reason-text { font-style: italic; font-weight: 700; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 2px; display: block; margin-top: 2px; }
+        .btn-log-delete { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.1); border: none; border-radius: 4px; cursor: pointer; width: 22px; height: 22px; font-size: 14px; font-weight: bold; color: inherit; display: flex; align-items: center; justify-content: center; z-index: 10; }
+        .btn-log-delete:hover { background: rgba(0,0,0,0.2); }
         
         #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 7000; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
         .modal-content { background: white; padding: 20px; border-radius: 12px; width: 320px; max-height: 80vh; overflow-y: auto; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
@@ -233,7 +234,7 @@
     let frHistory = { 1: [], 2: [], 3: [] };
     let directMode = false;
 
-    const STORAGE_KEY = "rugby_sub_manager_state_v430";
+    const STORAGE_KEY = "rugby_sub_manager_state_v431";
 
     function toggleDirectMode() {
         directMode = !directMode;
@@ -438,7 +439,6 @@
         fieldPositions = ps.filter(p => p.no <= 15).map((p, idx) => ({ posId: idx+1, player: p })); benchPlayers = ps.filter(p => p.no > 15); render();
     }
 
-    /* Modified for Uncontested Alert Coloring */
     function checkFRCompliance() {
         let isUncontested = false; let globalMinPlayers = 15;
         [1, 2, 3].forEach(posId => { const p = fieldPositions.find(fp => fp.posId === posId)?.player; if (!p || !p.fr || !p.fr.includes(String(posId))) { isUncontested = true; } });
@@ -457,11 +457,9 @@
             alertEl.style.display = 'block';
 
             if (currentFieldCount > globalMinPlayers) {
-                // 人数不足: 赤背景で点滅
                 alertEl.classList.add('blink-alert');
                 alertEl.classList.remove('alert-safe');
             } else {
-                // 人数充足: 点滅停止し、緑背景へ
                 alertEl.classList.remove('blink-alert');
                 alertEl.classList.add('alert-safe');
             }
@@ -600,7 +598,11 @@
         } else {
             if (r.out) {
                 let s = 'normal'; if(r.adminType === 'RED' || r.type === 'RED' || r.ofrDecision === 'RED UPGRADE') s = 'rc'; else if(r.type === 'Tactical') s = 'tactical'; else if(r.type === 'Injury') s = 'injury';
-                if (isMedicalType(r.type) && !r.isFromAdmin && r.type !== 'Injury / F') { s = 'medical_red'; const mins = r.type === 'Blood bin' ? 15 : 12; adminCards.push({ id: Date.now(), type: r.type, out: {...r.out, status: s}, in: r.in, posId: r.posId, matchTime: matchTime, pcTime: pcTime, remainingMs: mins * 60000, nextAction: 'Return' }); } else if(r.type === 'Injury / F') { s = 'medical_red'; }
+                if (isMedicalType(r.type) && !r.isFromAdmin && r.type !== 'Injury / F') { 
+                    s = 'medical_red'; 
+                    const mins = (r.type === 'Blood bin') ? 15 : (r.type === 'B / HIA' ? 17 : 12); 
+                    adminCards.push({ id: Date.now(), type: r.type, out: {...r.out, status: s}, in: r.in, posId: r.posId, matchTime: matchTime, pcTime: pcTime, remainingMs: mins * 60000, nextAction: 'Return' }); 
+                } else if(r.type === 'Injury / F') { s = 'medical_red'; }
                 const outPlayer = {...r.out, status: s}; const idx = benchPlayers.indexOf(null); if (idx !== -1) benchPlayers[idx] = outPlayer; else benchPlayers.push(outPlayer);
             }
             f.player = r.in;
@@ -657,16 +659,33 @@
     
     function renderLogs() {
         const el = document.getElementById('log-list'); el.innerHTML = '';
-        logs.forEach(l => {
+        logs.forEach((l, idx) => {
             const div = document.createElement('div'); let cls = 'log-item';
-            if (l.isPeriod) { cls += ' log-period'; div.innerHTML = `<b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})`; }
+            if (l.isPeriod) { 
+                cls += ' log-period'; 
+                div.innerHTML = `
+                    <button class="btn-log-delete" onclick="deleteSingleLog(event, ${idx})">×</button>
+                    <b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})`; 
+            }
             else {
-                if (l.isColor) { if (l.type.includes('YELLOW')) cls += ' log-yc'; else if (l.type.includes('RED')) cls += ' log-rc'; else if (l.type.includes('OFR')) cls += ' log-ofr'; div.onclick = () => openReasonModal(l.id); }
-                div.innerHTML = `<b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})<br>OUT:#${l.out?.no || '--'} ${l.out?.name || '(NONE)'}${l.in ? `<br>IN:#${l.in.no} ${l.in.name}` : ''}${l.reason ? `<span class=\"log-reason-text\">${l.reason}</span>` : ''}`;
+                if (l.isColor) { 
+                    if (l.type.includes('YELLOW')) cls += ' log-yc'; 
+                    else if (l.type.includes('RED')) cls += ' log-rc'; 
+                    else if (l.type.includes('OFR')) cls += ' log-ofr'; 
+                    div.onclick = () => openReasonModal(l.id); 
+                }
+                div.innerHTML = `
+                    <button class="btn-log-delete" onclick="deleteSingleLog(event, ${idx})">×</button>
+                    <b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})<br>
+                    OUT:#${l.out?.no || '--'} ${l.out?.name || '(NONE)'}
+                    ${l.in ? `<br>IN:#${l.in.no} ${l.in.name}` : ''}
+                    ${l.reason ? `<span class=\"log-reason-text\">${l.reason}</span>` : ''}`;
             }
             div.className = cls; el.appendChild(div);
         });
     }
+
+    function deleteSingleLog(e, index) { e.stopPropagation(); if (confirm("このログを削除しますか？")) { saveHistory(); logs.splice(index, 1); renderLogs(); saveToStorage(); } }
 
     function openReasonModal(logId) {
         const log = logs.find(x => x.id === logId); if(!log) return;
