@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rugby Sub Manager - Pro 2026 v4.3.3</title>
+    <title>Rugby Sub Manager - Pro 2026 v4.3.4</title>
     
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     
@@ -21,7 +21,6 @@
             --stopwatch-bg: #1e293b; --stopwatch-text: #34d399;
         }
         
-        /* iPadのリロード(Pull-to-refresh)を防止 */
         html, body {
             overscroll-behavior-y: none;
             overflow: hidden;
@@ -94,7 +93,6 @@
             user-select: none;
             touch-action: none; 
         }
-        /* 省略：デザイン系CSSは変更なし */
         .pos-label { width: 22px; color: var(--text-sub); font-size: 0.75rem; border-right: 1px solid #eee; margin-right: 8px; text-align: center; flex-shrink: 0; cursor: pointer; font-weight: 900; }
         .name-area { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; text-align: left; }
         .attr-tag { font-size: 0.6rem; padding: 2px 5px; border-radius: 4px; margin-left: 4px; font-weight: 900; color: #fff; flex-shrink: 0; }
@@ -116,7 +114,6 @@
         .card-row b { flex-grow: 1; text-align: left; color: #000; }
         .btn-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 8px 0; }
         .btn-group button { font-size: 1rem; padding: 8px 2px; cursor: pointer; font-weight: 800; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; transition: 0.2s; position: relative; z-index: 10; white-space: nowrap; overflow: hidden; }
-        /* 各種ボタンスタイルは維持 */
         .btn-group button.active-tactical { background: var(--text-tactical); color: #fff; border-color: var(--text-tactical); }
         .btn-group button.active-injury { background: #64748b; color: #fff; border-color: #64748b; }
         .btn-group button.active-medical { background: var(--text-medical); color: #fff; border-color: var(--text-medical); }
@@ -149,6 +146,11 @@
         .fr-hist-table th { background: #f8fafc; font-size: 0.75rem; color: var(--text-sub); }
 
         .dnd-poly-ghost { opacity: 0.8 !important; background: #fff !important; border: 2px solid var(--bench-orange) !important; border-radius: 8px !important; }
+
+        /* モーダル用ボタン */
+        .modal-btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
+        .btn-confirm { background: var(--field-green); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 800; cursor: pointer; }
+        .btn-cancel { background: #64748b; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 800; cursor: pointer; }
     </style>
 </head>
 <body onload="initApp()">
@@ -160,7 +162,7 @@
             <div id="uncontested-alert">Uncontested scrum</div>
             <div class="stopwatch-container">
                 <div class="stopwatch-panel">
-                    <div id="timer-display" ondblclick="showTimeEdit()">00:00</div>
+                    <div id="timer-display" onclick="showTimeEdit()">00:00</div>
                     <button id="btn-toggle" class="btn-sw btn-toggle-start" onclick="toggleTimer()">START</button>
                     <button class="btn-sw btn-reset" onclick="resetTimer()">RESET</button>
                     <button class="btn-sw btn-history" onclick="undo()" title="Undo">UNDO</button>
@@ -229,7 +231,9 @@
         <h3 id="modal-title">Select Player</h3>
         <div id="modal-body-content"></div>
         <div id="modal-player-list"></div>
-        <button onclick="closeModal()" style="margin-top:10px; padding:8px 15px; border-radius:6px; border:none; background:#64748b; color:white; font-weight:800; cursor:pointer;">Close</button>
+        <div id="modal-footer" style="margin-top:10px;">
+             <button id="modal-close-btn" onclick="closeModal()" style="padding:8px 15px; border-radius:6px; border:none; background:#64748b; color:white; font-weight:800; cursor:pointer;">Close</button>
+        </div>
     </div>
 </div>
 
@@ -242,9 +246,7 @@
         };
         MobileDragDrop.polyfill(polyfillOptions);
         
-        // iPadのリロードを物理的に阻止
         window.addEventListener('touchmove', function(e) {
-            // スクロールエリア以外でのタッチムーブを無効化
             if (!e.target.closest('.scroll-area, .modal-content')) {
                 e.preventDefault();
             }
@@ -253,7 +255,6 @@
         loadFromStorage();
     }
 
-    /* 以下、ロジック部分は前回の修正（理由入力ポップアップの選手非表示など）を含めすべて維持 */
     function handleDragOver(e) { e.preventDefault(); if (e.dataTransfer) { e.dataTransfer.dropEffect = 'move'; } }
 
     let fieldPositions = Array.from({length: 15}, (_, i) => ({ posId: i+1, player: null }));
@@ -265,6 +266,33 @@
     let directMode = false;
 
     const STORAGE_KEY = "rugby_sub_manager_state_v432";
+
+    /* カスタムポップアップ(モーダル)管理 */
+    let pendingConfirm = null;
+    function showConfirm(title, message, onConfirm) {
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-player-list').innerHTML = "";
+        document.getElementById('modal-footer').style.display = "none";
+        const body = document.getElementById('modal-body-content');
+        body.innerHTML = `<p style="font-weight:700; margin-bottom:20px;">${message}</p>
+            <div class="modal-btn-group">
+                <button class="btn-confirm" id="modal-ok-btn">OK</button>
+                <button class="btn-cancel" onclick="closeModal()">CANCEL</button>
+            </div>`;
+        document.getElementById('modal-overlay').style.display = 'flex';
+        document.getElementById('modal-ok-btn').onclick = () => {
+            closeModal();
+            onConfirm();
+        };
+    }
+
+    function showAlert(title, message) {
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-player-list').innerHTML = "";
+        document.getElementById('modal-footer').style.display = "block";
+        document.getElementById('modal-body-content').innerHTML = `<p style="font-weight:700;">${message}</p>`;
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
 
     function toggleDirectMode() {
         directMode = !directMode;
@@ -295,13 +323,19 @@
         }
     }
 
-    function allClear() { if (confirm("全てのデータを初期化します。よろしいですか？")) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
+    function allClear() { 
+        showConfirm("初期化", "全てのデータを初期化します。よろしいですか？", () => {
+             localStorage.removeItem(STORAGE_KEY); location.reload(); 
+        });
+    }
+    
     function toggleSetting() { const p = document.getElementById('setting-popup'); p.style.display = (p.style.display === 'block') ? 'none' : 'block'; }
 
     function showFRHistory() {
         toggleSetting();
         document.getElementById('modal-title').innerText = "FR HISTORY";
         document.getElementById('modal-player-list').innerHTML = "";
+        document.getElementById('modal-footer').style.display = "block";
         const body = document.getElementById('modal-body-content');
         let html = `<table class="fr-hist-table"><tr><th></th><th>1人目</th><th>2人目</th></tr>`;
         [1, 2, 3].forEach(id => {
@@ -313,7 +347,12 @@
         document.getElementById('modal-overlay').style.display = 'flex';
     }
 
-    function clearFRHistByPos(posId) { if (confirm(`FR${posId} の履歴を削除しますか？`)) { saveHistory(); frHistory[posId] = []; render(); } }
+    function clearFRHistByPos(posId) { 
+        showConfirm("履歴削除", `FR${posId} の履歴を削除しますか？`, () => {
+            saveHistory(); frHistory[posId] = []; render(); 
+        });
+    }
+
     function showCatEdit() { document.getElementById('cat-edit-popup').style.display = 'block'; }
     function hideCatEdit() { 
         catLimits.abc = parseInt(document.getElementById('limit-abc').value) || 0;
@@ -323,7 +362,7 @@
     }
 
     function exportLogs() {
-        if (logs.length === 0) { alert("ログがありません。"); return; }
+        if (logs.length === 0) { showAlert("警告", "ログがありません。"); return; }
         let csvContent = "\uFEFF"; csvContent += "Type,MatchTime,PCTime,OUT_No,OUT_Name,IN_No,IN_Name,Reason\n";
         logs.forEach(l => {
             const type = (l.type || "").replace(/"/g, '""');
@@ -358,15 +397,20 @@
         if (el) el.innerText = `A2+B+C: ${countABC}/${catLimits.abc} | C: ${countC}/${catLimits.c}`;
     }
 
-    function validateCategory(outP, inP) {
-        if (!inP) return true;
-        const inCat = String(inP.cat).toUpperCase(); if (!['A2', 'B', 'C'].includes(inCat)) return true;
+    function validateCategory(outP, inP, onValid) {
+        if (!inP) { onValid(); return; }
+        const inCat = String(inP.cat).toUpperCase(); if (!['A2', 'B', 'C'].includes(inCat)) { onValid(); return; }
         let curABC = 0, curC = 0;
         fieldPositions.forEach(f => { if (f.player && f.player.id !== outP?.id) { const c = String(f.player.cat).toUpperCase(); if (['A2', 'B', 'C'].includes(c)) curABC++; if (c === 'C') curC++; } });
         const nextABC = curABC + 1; const nextC = curC + (inCat === 'C' ? 1 : 0);
-        if (nextABC > catLimits.abc) return confirm(`[カテゴリー制限] A2+B+Cが上限を超えます。よろしいですか？`);
-        if (nextC > catLimits.c) return confirm(`[カテゴリー制限] Cが上限を超えます。よろしいですか？`);
-        return true;
+        
+        if (nextABC > catLimits.abc) {
+            showConfirm("カテゴリー制限", `A2+B+Cが上限(${catLimits.abc})を超えます。よろしいですか？`, onValid);
+        } else if (nextC > catLimits.c) {
+            showConfirm("カテゴリー制限", `カテゴリーCが上限(${catLimits.c})を超えます。よろしいですか？`, onValid);
+        } else {
+            onValid();
+        }
     }
 
     function showTimeEdit() { const popup = document.getElementById('time-edit-popup'); const s = Math.floor(elapsedTime / 1000); document.getElementById('edit-min').value = Math.floor(s / 60); document.getElementById('edit-sec').value = s % 60; popup.style.display = 'block'; }
@@ -391,7 +435,11 @@
         else { clearInterval(timerInterval); timerInterval = null; btn.innerText = 'START'; btn.className = 'btn-sw btn-toggle-start'; }
     }
 
-    function resetTimer() { if (confirm("経過時間を00:00にリセットしますか？")) { saveHistory(); elapsedTime = 0; isSecondHalf = false; if (timerInterval) toggleTimer(); document.getElementById('timer-display').innerText = "00:00"; saveToStorage(); } }
+    function resetTimer() { 
+        showConfirm("タイマーリセット", "経過時間を00:00にリセットしますか？", () => {
+            saveHistory(); elapsedTime = 0; isSecondHalf = false; if (timerInterval) toggleTimer(); document.getElementById('timer-display').innerText = "00:00"; saveToStorage(); 
+        });
+    }
 
     function tick() {
         const now = Date.now(); const delta = now - lastTick; lastTick = now;
@@ -415,8 +463,33 @@
     function redo() { if (redoStack.length === 0) return; historyStack.push(getCurrentState()); applyState(redoStack.pop()); }
     function applyState(stateStr) { const state = JSON.parse(stateStr); fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs; isSecondHalf = state.isSecondHalf || false; elapsedTime = state.elapsedTime || 0; frHistory = state.frHistory || { 1: [], 2: [], 3: [] }; directMode = !!state.directMode; render(); }
 
-    function dropToRes(e) { e.preventDefault(); if (window.dragged?.source === 'field') { if (!validateFR(window.dragged.item.player, null, window.dragged.item.posId)) return; saveHistory(); createCardReservation(window.dragged.item.player, window.dragged.item.posId); } }
-    function dropToBenchArea(e) { e.preventDefault(); if (window.dragged?.source === 'field') { const sourceItem = window.dragged.item; const p = sourceItem.player; if (!p || p.status === 'rc' || p.status === 'injury') return; if (!validateFR(p, null, sourceItem.posId)) return; saveHistory(); if (directMode) { const matchTime = formatTime(elapsedTime); const pcTime = getPCNow(); sourceItem.player = null; const outPlayer = {...p, status: 'normal'}; const idx = benchPlayers.indexOf(null); if (idx !== -1) benchPlayers[idx] = outPlayer; else benchPlayers.push(outPlayer); logs.unshift({ id: Date.now(), type: 'OUT (Direct)', matchTime, pcTime, out: p, in: null }); render(); } else { createReservation(p, null, sourceItem.posId, null, 'Temporary'); } } }
+    function dropToRes(e) { 
+        e.preventDefault(); 
+        if (window.dragged?.source === 'field') { 
+            const p = window.dragged.item.player;
+            const posId = window.dragged.item.posId;
+            validateFR(p, null, posId, () => {
+                saveHistory(); createCardReservation(p, posId);
+            });
+        } 
+    }
+    
+    function dropToBenchArea(e) { 
+        e.preventDefault(); 
+        if (window.dragged?.source === 'field') { 
+            const sourceItem = window.dragged.item; const p = sourceItem.player; 
+            if (!p || p.status === 'rc' || p.status === 'injury') return; 
+            validateFR(p, null, sourceItem.posId, () => {
+                saveHistory(); 
+                if (directMode) { 
+                    const matchTime = formatTime(elapsedTime); const pcTime = getPCNow(); 
+                    sourceItem.player = null; const outPlayer = {...p, status: 'normal'}; 
+                    const idx = benchPlayers.indexOf(null); if (idx !== -1) benchPlayers[idx] = outPlayer; else benchPlayers.push(outPlayer); 
+                    logs.unshift({ id: Date.now(), type: 'OUT (Direct)', matchTime, pcTime, out: p, in: null }); render(); 
+                } else { createReservation(p, null, sourceItem.posId, null, 'Temporary'); } 
+            });
+        } 
+    }
 
     function processExcel(data) {
         saveHistory(); if (data[0] && data[0][0]) document.getElementById('team-name-display').innerText = data[0][0];
@@ -448,13 +521,14 @@
         } else { alertEl.style.display = 'none'; alertEl.classList.remove('blink-alert'); alertEl.classList.remove('alert-safe'); }
     }
 
-    function validateFR(outP, inP, posId) {
-        if (![1, 2, 3].includes(posId)) return true;
+    function validateFR(outP, inP, posId, onValid) {
+        if (![1, 2, 3].includes(posId)) { onValid(); return; }
         if (!inP || !inP.fr || !inP.fr.includes(String(posId))) {
             const msg = !inP ? `フロントロー(#${posId})が不在になります。アンコンテスト・スクラムになりますがよろしいですか？` : `交代選手(#${inP.no})はフロントロー(#${posId})の資格がありません。アンコンテスト・スクラムになりますがよろしいですか？`;
-            return confirm(msg);
+            showConfirm("FR確認", msg, onValid);
+            return;
         }
-        return true;
+        onValid();
     }
 
     function getPlayerColorClass(p) { if (!p) return 'color-normal'; if (p.status === 'medical_red') return 'color-medical'; if (p.status === 'tactical') return 'color-tactical'; return 'color-normal'; }
@@ -472,24 +546,30 @@
                 if (window.dragged?.source === 'bench') { 
                     const benchP = window.dragged.p, benchIdx = window.dragged.index;
                     if (item.player === null) {
-                        if (!validateFR(null, benchP, item.posId)) return; 
-                        if (!validateCategory(null, benchP)) return; 
-                        saveHistory(); 
-                        if (directMode) {
-                            const matchTime = formatTime(elapsedTime), pcTime = getPCNow();
-                            benchPlayers[benchIdx] = null; item.player = benchP;
-                            logs.unshift({ id: Date.now(), type: 'IN (Direct)', matchTime, pcTime, out: null, in: benchP });
-                            render();
-                        } else { createReservation(null, benchP, item.posId, benchIdx, 'Temporary'); }
+                        validateFR(null, benchP, item.posId, () => {
+                            validateCategory(null, benchP, () => {
+                                saveHistory(); 
+                                if (directMode) {
+                                    const matchTime = formatTime(elapsedTime), pcTime = getPCNow();
+                                    benchPlayers[benchIdx] = null; item.player = benchP;
+                                    logs.unshift({ id: Date.now(), type: 'IN (Direct)', matchTime, pcTime, out: null, in: benchP });
+                                    render();
+                                } else { createReservation(null, benchP, item.posId, benchIdx, 'Temporary'); }
+                            });
+                        });
                     } else {
-                        if (!validateFR(item.player, benchP, item.posId)) return; 
-                        if (!validateCategory(item.player, benchP)) return; 
-                        saveHistory(); createReservation(item.player, benchP, item.posId, benchIdx, 'Tactical'); 
+                        validateFR(item.player, benchP, item.posId, () => {
+                            validateCategory(item.player, benchP, () => {
+                                saveHistory(); createReservation(item.player, benchP, item.posId, benchIdx, 'Tactical'); 
+                            });
+                        });
                     }
                 } else if (window.dragged?.source === 'field') { 
-                    if (!validateFR(item.player, window.dragged.item.player, item.posId)) return; 
-                    if (!validateFR(window.dragged.item.player, item.player, window.dragged.item.posId)) return; 
-                    saveHistory(); swapPlayers(window.dragged.item, item); 
+                    validateFR(item.player, window.dragged.item.player, item.posId, () => {
+                        validateFR(window.dragged.item.player, item.player, window.dragged.item.posId, () => {
+                            saveHistory(); swapPlayers(window.dragged.item, item); 
+                        });
+                    });
                 } 
             };
             fl.appendChild(div);
@@ -508,9 +588,11 @@
                 e.stopPropagation(); if (isDisabled) return; 
                 if (window.dragged?.source === 'field') { 
                     const fPos = window.dragged.item;
-                    if (!validateFR(fPos.player, p, fPos.posId)) return; 
-                    if (!validateCategory(fPos.player, p)) return; 
-                    saveHistory(); createReservation(fPos.player, p, fPos.posId, idx, 'Tactical');
+                    validateFR(fPos.player, p, fPos.posId, () => {
+                        validateCategory(fPos.player, p, () => {
+                            saveHistory(); createReservation(fPos.player, p, fPos.posId, idx, 'Tactical');
+                        });
+                    });
                 } 
             };
             bl.appendChild(div);
@@ -583,7 +665,19 @@
         const el = document.getElementById('admin-list'); el.innerHTML = '';
         adminCards.forEach(c => {
             const div = document.createElement('div'); div.className = 'admin-card'; div.ondragover = handleDragOver;
-            div.ondrop = e => { e.stopPropagation(); if (window.dragged) { const dp = window.dragged.source === 'field' ? window.dragged.item.player : window.dragged.p; if (dp) { if (!validateFR(c.out, dp, c.posId)) return; if (!validateCategory(c.out, dp)) return; saveHistory(); c.in = dp; c.benchIdx = window.dragged.source === 'bench' ? window.dragged.index : undefined; renderAdmin(); } } };
+            div.ondrop = e => { 
+                e.stopPropagation(); 
+                if (window.dragged) { 
+                    const dp = window.dragged.source === 'field' ? window.dragged.item.player : window.dragged.p; 
+                    if (dp) { 
+                        validateFR(c.out, dp, c.posId, () => {
+                            validateCategory(c.out, dp, () => {
+                                saveHistory(); c.in = dp; c.benchIdx = window.dragged.source === 'bench' ? window.dragged.index : undefined; renderAdmin(); 
+                            });
+                        });
+                    } 
+                } 
+            };
             const dTime = formatTime(c.remainingMs), pOutName = c.out ? `#${c.out.no} ${c.out.name}` : '(NONE)', pInName = c.in ? `#${c.in.no} ${c.in.name}` : '(NONE)';
             const outColor = getPlayerColorClass(c.out), inColor = getPlayerColorClass(c.in);
             if (['YELLOW','RED','OFR'].includes(c.type)) {
@@ -602,13 +696,50 @@
         });
     }
 
-    function setAdminNext(id, act) { saveHistory(); const c = adminCards.find(x => x.id === id); if (!c) return; c.nextAction = act; if(['Tactical','Injury','Replacement'].includes(act) && !isMedicalType(c.type)) { renderAdmin(); openPlayerModal(id); } else { if (act === 'Return' && ['YELLOW','RED','OFR'].includes(c.type)) c.in = null; renderAdmin(); } }
-    function setOfrDecision(id, d) { saveHistory(); const c = adminCards.find(x => x.id === id); if(!c) return; c.ofrDecision = d; logs.unshift({ id: Date.now(), type: `OFR DECISION: ${d}`, matchTime: formatTime(elapsedTime), pcTime: getPCNow(), out: c.out, isColor: true, reason: "" }); if(d === 'RED UPGRADE') { c.nextAction = 'Replacement'; c.remainingMs = 1200000; if([1,2,3].includes(c.posId)) frHistory[c.posId].push('OFR DECISION: RED UPGRADE'); render(); openPlayerModal(id); } else { c.nextAction = 'Return'; render(); } }
+    function setAdminNext(id, act) { 
+        saveHistory(); const c = adminCards.find(x => x.id === id); if (!c) return; 
+        c.nextAction = act; 
+        if(['Tactical','Injury','Replacement'].includes(act) && !isMedicalType(c.type)) { 
+            renderAdmin(); openPlayerModal(id); 
+        } else { 
+            if (act === 'Return' && ['YELLOW','RED','OFR'].includes(c.type)) c.in = null; 
+            renderAdmin(); 
+        } 
+    }
+
+    function setOfrDecision(id, d) { 
+        saveHistory(); const c = adminCards.find(x => x.id === id); if(!c) return; 
+        c.ofrDecision = d; 
+        logs.unshift({ id: Date.now(), type: `OFR DECISION: ${d}`, matchTime: formatTime(elapsedTime), pcTime: getPCNow(), out: c.out, isColor: true, reason: "" }); 
+        if(d === 'RED UPGRADE') { 
+            c.nextAction = 'Replacement'; c.remainingMs = 1200000; 
+            if([1,2,3].includes(c.posId)) frHistory[c.posId].push('OFR DECISION: RED UPGRADE'); 
+            render(); openPlayerModal(id); 
+        } else { c.nextAction = 'Return'; render(); } 
+    }
     
     function openPlayerModal(cid) { 
-        document.getElementById('modal-title').innerText = "Select Player"; document.getElementById('modal-body-content').innerHTML = "";
-        const list = document.getElementById('modal-player-list'); list.innerHTML = ''; const card = adminCards.find(x => x.id === cid); 
-        benchPlayers.forEach((p, idx) => { if (p !== null && !['rc', 'injury'].includes(p.status)) { const b = document.createElement('button'); b.className = 'modal-player-btn'; b.innerText = `#${p.no} ${p.name}`; b.onclick = () => { if (card) { if (!validateFR(card.out, p, card.posId)) return; if (!validateCategory(card.out, p)) return; card.in = p; card.benchIdx = idx; } closeModal(); renderAdmin(); }; list.appendChild(b); } }); 
+        document.getElementById('modal-title').innerText = "Select Player"; 
+        document.getElementById('modal-body-content').innerHTML = "";
+        document.getElementById('modal-footer').style.display = "block";
+        const list = document.getElementById('modal-player-list'); list.innerHTML = ''; 
+        const card = adminCards.find(x => x.id === cid); 
+        benchPlayers.forEach((p, idx) => { 
+            if (p !== null && !['rc', 'injury'].includes(p.status)) { 
+                const b = document.createElement('button'); b.className = 'modal-player-btn'; 
+                b.innerText = `#${p.no} ${p.name}`; 
+                b.onclick = () => { 
+                    if (card) { 
+                        validateFR(card.out, p, card.posId, () => {
+                            validateCategory(card.out, p, () => {
+                                card.in = p; card.benchIdx = idx; closeModal(); renderAdmin();
+                            });
+                        });
+                    } 
+                }; 
+                list.appendChild(b); 
+            } 
+        }); 
         document.getElementById('modal-overlay').style.display = 'flex'; 
     }
 
@@ -616,7 +747,7 @@
 
     function returnToRes(id) { 
         saveHistory(); const c = adminCards.find(x => x.id === id); if (!c) return; 
-        if (['YELLOW', 'RED', 'OFR'].includes(c.type) && ['Tactical', 'Injury', 'Replacement'].includes(c.nextAction) && !c.in) { alert("交代する選手を選択してください。"); return; } 
+        if (['YELLOW', 'RED', 'OFR'].includes(c.type) && ['Tactical', 'Injury', 'Replacement'].includes(c.nextAction) && !c.in) { showAlert("警告", "交代する選手を選択してください。"); return; } 
         let outP, inP; if (c.nextAction === 'Return') { outP = c.in; inP = c.out; } else { outP = c.out; inP = c.in; } 
         reservations.push({ id: Date.now(), out: outP, in: inP, posId: c.posId, benchIdx: c.benchIdx, type: c.nextAction === 'Replacement' ? 'Tactical' : c.nextAction, isFromAdmin: true, adminType: c.type, remainingMs: c.remainingMs, ofrDecision: c.ofrDecision }); 
         adminCards = adminCards.filter(x => x.id !== id); render(); 
@@ -638,14 +769,24 @@
         });
     }
 
-    function deleteSingleLog(e, index) { e.stopPropagation(); if (confirm("このログを削除しますか？")) { saveHistory(); logs.splice(index, 1); renderLogs(); saveToStorage(); } }
+    function deleteSingleLog(e, index) { 
+        e.stopPropagation(); 
+        showConfirm("ログ削除", "このログを削除しますか？", () => {
+            saveHistory(); logs.splice(index, 1); renderLogs(); saveToStorage(); 
+        });
+    }
 
     function openReasonModal(logId) {
         const log = logs.find(x => x.id === logId); if(!log) return;
         document.getElementById('modal-title').innerText = "Log Reason";
         document.getElementById('modal-player-list').innerHTML = ""; 
+        document.getElementById('modal-footer').style.display = "none";
         const body = document.getElementById('modal-body-content');
-        body.innerHTML = `<textarea id=\"reason-input-area\" class=\"reason-edit-area\" placeholder=\"理由を入力してください\">${log.reason || ''}</textarea><button class=\"btn-edit-save\" style=\"width:100%;\" onclick=\"saveLogReason(${logId})\">SAVE</button>`;
+        body.innerHTML = `<textarea id=\"reason-input-area\" class=\"reason-edit-area\" placeholder=\"理由を入力してください\">${log.reason || ''}</textarea>
+            <div class="modal-btn-group">
+                <button class=\"btn-edit-save\" style="flex-grow:1;" onclick=\"saveLogReason(${logId})\">SAVE</button>
+                <button class="btn-cancel" onclick="closeModal()">CLOSE</button>
+            </div>`;
         document.getElementById('modal-overlay').style.display = 'flex';
         document.getElementById('reason-input-area').focus();
     }
