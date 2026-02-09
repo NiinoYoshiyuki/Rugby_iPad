@@ -241,7 +241,7 @@
     function initApp() {
         var polyfillOptions = {
             dragImageGhostCustomClassName: "dnd-poly-ghost",
-            holdToDrag: 200,
+            holdToDrag: 100,
             forceApply: true
         };
         MobileDragDrop.polyfill(polyfillOptions);
@@ -652,7 +652,7 @@
                     s = 'medical_red'; 
                     const mins = (r.type === 'Blood bin') ? 15 : (r.type === 'B / HIA' ? 17 : 12); 
                     adminCards.push({ id: Date.now(), type: r.type, out: {...r.out, status: s}, in: r.in, posId: r.posId, matchTime: matchTime, pcTime: pcTime, remainingMs: mins * 60000, nextAction: 'Return' }); 
-                } else if(r.type === 'Injury / F') { s = 'medical_red'; }
+                } else if(r.type === 'Injury / F') { s = 'injury'; } // Injury / F時は、statusをinjuryにしてグレーバック・選択不可を適用
                 const outP = {...r.out, status: s}; const idx = benchPlayers.indexOf(null); if (idx !== -1) benchPlayers[idx] = outP; else benchPlayers.push(outP);
             }
             f.player = r.in;
