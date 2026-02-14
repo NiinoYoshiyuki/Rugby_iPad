@@ -1,1 +1,161 @@
 
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Sync StopWatch</title>
+<style>
+body{
+    font-family: Arial;
+    text-align:center;
+    margin-top:100px;
+}
+#time{
+    font-size:90px;
+    margin-bottom:40px;
+}
+#toggleBtn{
+    font-size:22px;
+    padding:15px 40px;
+    margin:10px;
+    color:white;
+    border:none;
+    cursor:pointer;
+}
+.running{
+    background-color:#d9534f; /* 赤 */
+}
+.paused{
+    background-color:#5cb85c; /* 緑 */
+}
+button{
+    font-size:18px;
+    padding:12px 25px;
+    margin:10px;
+}
+#editor{
+    margin-top:20px;
+}
+input{
+    font-size:20px;
+    width:80px;
+    text-align:center;
+}
+</style>
+</head>
+<body>
+
+<div id="time">00:00</div>
+
+<button id="toggleBtn" class="paused" onclick="toggle()">START</button>
+<button onclick="reset()">RESET</button>
+
+<div id="editor">
+    分 <input type="number" id="minInput" min="0" value="0">
+    秒 <input type="number" id="secInput" min="0" max="59" value="0">
+    <button onclick="applyTime()">設定</button>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBJSA1saHwm660FTdY_Xw4NNmjT4jnpL1E",
+  authDomain: "sw01-4efd3.firebaseapp.com",
+  databaseURL: "https://sw01-4efd3-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "sw01-4efd3",
+  storageBucket: "sw01-4efd3.firebasestorage.app",
+  messagingSenderId: "270792285208",
+  appId: "1:270792285208:web:ecbe97b0795c661e3eb76d"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const stateRef = ref(db, "stopwatch");
+
+let localState = {
+    running:false,
+    startTime:0,
+    elapsed:0
+};
+
+onValue(stateRef,(snapshot)=>{
+    if(snapshot.exists()){
+        localState = snapshot.val();
+        updateButton();
+    }
+});
+
+function getTotal(){
+    let total = localState.elapsed;
+    if(localState.running){
+        total += Date.now() - localState.startTime;
+    }
+    return total;
+}
+
+function updateDisplay(){
+    let total = getTotal();
+    let sec = Math.floor(total/1000)%60;
+    let min = Math.floor(total/60000);
+
+    document.getElementById("time").innerText =
+        String(min).padStart(2,"0")+":"+
+        String(sec).padStart(2,"0");
+}
+setInterval(updateDisplay,100);
+
+function updateButton(){
+    const btn = document.getElementById("toggleBtn");
+    if(localState.running){
+        btn.innerText = "PAUSE";
+        btn.className = "running";
+    }else{
+        btn.innerText = "START";
+        btn.className = "paused";
+    }
+}
+
+window.toggle = function(){
+    if(localState.running){
+        let newElapsed = getTotal();
+        set(stateRef,{
+            running:false,
+            startTime:0,
+            elapsed:newElapsed
+        });
+    }else{
+        set(stateRef,{
+            running:true,
+            startTime:Date.now(),
+            elapsed:localState.elapsed
+        });
+    }
+}
+
+window.reset = function(){
+    set(stateRef,{
+        running:false,
+        startTime:0,
+        elapsed:0
+    });
+}
+
+window.applyTime = function(){
+    let min = parseInt(document.getElementById("minInput").value) || 0;
+    let sec = parseInt(document.getElementById("secInput").value) || 0;
+    if(sec > 59) sec = 59;
+
+    let newElapsed = (min*60 + sec)*1000;
+
+    set(stateRef,{
+        running:false,
+        startTime:0,
+        elapsed:newElapsed
+    });
+}
+</script>
+
+</body>
+</html>
