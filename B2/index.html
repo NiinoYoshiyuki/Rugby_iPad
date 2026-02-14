@@ -84,20 +84,6 @@ input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button { opacity: 1; height: 50px; width: 30px; }
 .apply-btn { background-color: #007bff; color: white; vertical-align: middle; }
 
-/* 会場名入力用 */
-#venueInput {
-    font-size: 18px;
-    width: 250px;
-    height: 40px;
-    background-color: #333;
-    border: 1px solid #444;
-    color: white;
-    border-radius: 5px;
-    padding: 0 10px;
-    vertical-align: middle;
-    margin-right: 10px;
-}
-
 /* カウントダウンセクション */
 .countdown-container {
     margin-top: 30px;
@@ -147,11 +133,6 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 1; height: 50px; widt
 </div>
 
 <div id="editor">
-    <div style="margin-bottom: 20px;">
-        <input type="text" id="venueInput" placeholder="会場名を入力">
-        <button class="apply-btn" style="padding: 10px 20px;" onclick="applyVenue()">会場名設定</button>
-    </div>
-    
     <input type="number" id="minInput" min="0" value="0"> <span>分</span>
     <input type="number" id="secInput" min="0" max="59" value="0"> <span>秒</span>
     <button class="apply-btn" onclick="applyTime()">時間設定</button>
@@ -261,11 +242,6 @@ window.applyTime = () => {
     let min = parseInt(document.getElementById("minInput").value) || 0;
     let sec = parseInt(document.getElementById("secInput").value) || 0;
     set(stateRef, { running: false, startTime: 0, elapsed: (min*60 + sec)*1000 });
-}
-
-window.applyVenue = () => {
-    let name = document.getElementById("venueInput").value || "KUMAGAYA RUGBY STADIUM";
-    set(venueRef, name);
 }
 
 window.start90sTry = () => set(tryRef, { running: true, startTime: Date.now(), elapsed: 90000 });
