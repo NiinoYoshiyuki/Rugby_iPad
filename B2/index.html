@@ -1,45 +1,115 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Sync StopWatch</title>
+<title>Sync StopWatch - Premium</title>
 <style>
-body{
-    font-family: Arial;
-    text-align:center;
-    margin-top:100px;
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background-color: #121212;
+    color: #e0e0e0;
+    text-align: center;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100vh;
 }
-#time{
-    font-size:90px;
-    margin-bottom:40px;
+
+/* メインタイマー */
+#time {
+    font-size: 120px;
+    font-weight: 200;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -2px;
+    margin-bottom: 30px;
+    color: #ffffff;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
 }
-#toggleBtn{
-    font-size:22px;
-    padding:15px 40px;
-    margin:10px;
-    color:white;
-    border:none;
-    cursor:pointer;
+
+/* ボタンの共通スタイル */
+button {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 12px 30px;
+    margin: 10px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
 }
-.running{
-    background-color:#d9534f; /* 赤 */
+
+button:active {
+    transform: translateY(2px);
 }
-.paused{
-    background-color:#5cb85c; /* 緑 */
+
+/* メイン操作系 */
+#toggleBtn {
+    font-size: 24px;
+    padding: 18px 50px;
+    min-width: 180px;
 }
-button{
-    font-size:18px;
-    padding:12px 25px;
-    margin:10px;
+.running { background-color: #ff4d4d; color: white; box-shadow: 0 4px 15px rgba(255, 77, 77, 0.3); }
+.paused { background-color: #00c851; color: white; box-shadow: 0 4px 15px rgba(0, 200, 81, 0.3); }
+.reset-btn { background-color: #424242; color: #bdbdbd; }
+
+/* 修正エリア（エディタ） */
+#editor {
+    margin-top: 50px;
+    padding: 25px;
+    background-color: #1e1e1e;
+    display: inline-block;
+    border-radius: 16px;
+    border: 1px solid #333;
 }
-#editor{
-    margin-top:20px;
+#editor span { font-size: 20px; color: #9e9e9e; margin: 0 10px; vertical-align: middle; }
+
+input[type="number"] {
+    font-size: 32px;
+    width: 100px;
+    height: 60px;
+    background-color: #333;
+    border: 2px solid #444;
+    color: white;
+    border-radius: 10px;
+    text-align: center;
+    vertical-align: middle;
 }
-input{
-    font-size:20px;
-    width:80px;
-    text-align:center;
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    opacity: 1;
+    height: 50px;
+    width: 30px;
+}
+.apply-btn { background-color: #007bff; color: white; vertical-align: middle; }
+
+/* トライ専用エリア */
+.tri-section {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px dashed #333;
+}
+
+/* 90秒専用タイマーの表示 */
+#triDisplay {
+    font-size: 36px;
+    color: #ffab00;
+    font-weight: bold;
+    margin-bottom: 10px;
+    height: 45px;
+}
+
+.tri-btn {
+    background-color: #ffab00;
+    color: #000;
+    font-size: 28px;
+    padding: 20px 60px;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(255, 171, 0, 0.3);
+}
+.tri-btn:hover {
+    background-color: #ffc400;
 }
 </style>
 </head>
@@ -47,13 +117,20 @@ input{
 
 <div id="time">00:00</div>
 
-<button id="toggleBtn" class="paused" onclick="toggle()">START</button>
-<button onclick="reset()">RESET</button>
+<div class="controls">
+    <button id="toggleBtn" class="paused" onclick="toggle()">START</button>
+    <button class="reset-btn" onclick="reset()">RESET</button>
+</div>
 
 <div id="editor">
-    分 <input type="number" id="minInput" min="0" value="0">
-    秒 <input type="number" id="secInput" min="0" max="59" value="0">
-    <button onclick="applyTime()">設定</button>
+    <input type="number" id="minInput" min="0" value="0"> <span>分</span>
+    <input type="number" id="secInput" min="0" max="59" value="0"> <span>秒</span>
+    <button class="apply-btn" onclick="applyTime()">時間設定</button>
+
+    <div class="tri-section">
+        <div id="triDisplay">--</div>
+        <button class="tri-btn" onclick="start90sTri()">90s TRY (START)</button>
+    </div>
 </div>
 
 <script type="module">
@@ -72,87 +149,99 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+
 const stateRef = ref(db, "stopwatch");
+const triRef = ref(db, "triTimer");
 
-let localState = {
-    running:false,
-    startTime:0,
-    elapsed:0
-};
+let localState = { running: false, startTime: 0, elapsed: 0 };
+let triState = { running: false, startTime: 0, elapsed: 0 };
 
-onValue(stateRef,(snapshot)=>{
-    if(snapshot.exists()){
+onValue(stateRef, (snapshot) => {
+    if(snapshot.exists()) {
         localState = snapshot.val();
         updateButton();
     }
 });
 
-function getTotal(){
-    let total = localState.elapsed;
-    if(localState.running){
-        total += Date.now() - localState.startTime;
+onValue(triRef, (snapshot) => {
+    if(snapshot.exists()) {
+        triState = snapshot.val();
     }
+});
+
+function getTotal() {
+    let total = localState.elapsed;
+    if(localState.running) total += Date.now() - localState.startTime;
     return total;
 }
 
-function updateDisplay(){
+function getTriTotal() {
+    if (!triState.running) return triState.elapsed;
+    let remain = triState.elapsed - (Date.now() - triState.startTime);
+    return remain > 0 ? remain : 0;
+}
+
+function updateDisplay() {
+    // メインタイマー
     let total = getTotal();
     let sec = Math.floor(total/1000)%60;
     let min = Math.floor(total/60000);
+    document.getElementById("time").innerText = String(min).padStart(2,"0")+":"+String(sec).padStart(2,"0");
 
-    document.getElementById("time").innerText =
-        String(min).padStart(2,"0")+":"+
-        String(sec).padStart(2,"0");
+    // 90秒タイマー
+    let triTotal = getTriTotal();
+    if (triState.running || (triTotal > 0 && triTotal < 90000)) {
+        let totalSeconds = Math.ceil(triTotal / 1000);
+        document.getElementById("triDisplay").innerText = "LIMIT: " + totalSeconds + "s";
+        
+        // 0秒になったら停止状態をFirebaseに保存
+        if (triState.running && triTotal <= 0) {
+            set(triRef, { running: false, startTime: 0, elapsed: 0 });
+        }
+    } else if (triTotal === 90000 && !triState.running) {
+        document.getElementById("triDisplay").innerText = "90s";
+    } else {
+        document.getElementById("triDisplay").innerText = "--";
+    }
 }
-setInterval(updateDisplay,100);
+setInterval(updateDisplay, 100);
 
-function updateButton(){
+function updateButton() {
     const btn = document.getElementById("toggleBtn");
-    if(localState.running){
+    if(localState.running) {
         btn.innerText = "PAUSE";
         btn.className = "running";
-    }else{
+    } else {
         btn.innerText = "START";
         btn.className = "paused";
     }
 }
 
-window.toggle = function(){
-    if(localState.running){
-        let newElapsed = getTotal();
-        set(stateRef,{
-            running:false,
-            startTime:0,
-            elapsed:newElapsed
-        });
-    }else{
-        set(stateRef,{
-            running:true,
-            startTime:Date.now(),
-            elapsed:localState.elapsed
-        });
+window.toggle = function() {
+    if(localState.running) {
+        set(stateRef, { running: false, startTime: 0, elapsed: getTotal() });
+    } else {
+        set(stateRef, { running: true, startTime: Date.now(), elapsed: localState.elapsed });
     }
 }
 
-window.reset = function(){
-    set(stateRef,{
-        running:false,
-        startTime:0,
-        elapsed:0
-    });
+window.reset = function() {
+    set(stateRef, { running: false, startTime: 0, elapsed: 0 });
+    set(triRef, { running: false, startTime: 0, elapsed: 0 });
 }
 
-window.applyTime = function(){
+window.applyTime = function() {
     let min = parseInt(document.getElementById("minInput").value) || 0;
     let sec = parseInt(document.getElementById("secInput").value) || 0;
-    if(sec > 59) sec = 59;
+    set(stateRef, { running: false, startTime: 0, elapsed: (min*60 + sec)*1000 });
+}
 
-    let newElapsed = (min*60 + sec)*1000;
-
-    set(stateRef,{
-        running:false,
-        startTime:0,
-        elapsed:newElapsed
+window.start90sTri = function() {
+    // ボタンが押されたときだけ開始
+    set(triRef, {
+        running: true,
+        startTime: Date.now(),
+        elapsed: 90 * 1000
     });
 }
 </script>
