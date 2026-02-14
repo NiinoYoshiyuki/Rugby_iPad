@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rugby Sub Manager - Pro 2026 v4.3.4</title>
+    <title>Rugby Sub Manager - Pro 2026 v4.3.4 (Firebase Sync)</title>
     
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     
@@ -147,7 +147,6 @@
 
         .dnd-poly-ghost { opacity: 0.8 !important; background: #fff !important; border: 2px solid var(--bench-orange) !important; border-radius: 8px !important; }
 
-        /* モーダル用ボタン */
         .modal-btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
         .btn-confirm { background: var(--field-green); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 800; cursor: pointer; }
         .btn-cancel { background: #64748b; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 800; cursor: pointer; }
@@ -237,7 +236,89 @@
     </div>
 </div>
 
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCK3Zumcpp6Q9KdU8xIzn7dzupiQwOPIE0",
+  authDomain: "realtime-database-ae171.firebaseapp.com",
+  databaseURL: "https://realtime-database-ae171-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "realtime-database-ae171",
+  storageBucket: "realtime-database-ae171.firebasestorage.app",
+  messagingSenderId: "119470956682",
+  appId: "1:119470956682:web:3ee2d71ff10679d91acd73"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const stateRef = ref(db, "stopwatch");
+
+let isRemoteUpdate = false;
+
+// グローバル変数にFirebase同期関数を登録
+window.syncToFirebase = function(running, elapsed) {
+    if (isRemoteUpdate) return;
+    set(stateRef, {
+        running: running,
+        startTime: running ? Date.now() : 0,
+        elapsed: elapsed
+    });
+};
+
+// Firebaseからのデータ受信
+onValue(stateRef, (snapshot) => {
+    if (snapshot.exists()) {
+        isRemoteUpdate = true;
+        const data = snapshot.val();
+        
+        // メインスクリプト側のインターバルを停止
+        if (window.timerInterval) {
+            clearInterval(window.timerInterval);
+            window.timerInterval = null;
+        }
+
+        if (data.running) {
+            // 現在の時刻を計算してメインスクリプトの変数に反映
+            window.elapsedTime = data.elapsed + (Date.now() - data.startTime);
+            window.lastTick = Date.now();
+            window.timerInterval = setInterval(window.tick, 100);
+            
+            const btn = document.getElementById('btn-toggle');
+            if (btn) { btn.innerText = 'PAUSE'; btn.className = 'btn-sw btn-toggle-pause'; }
+        } else {
+            window.elapsedTime = data.elapsed;
+            const btn = document.getElementById('btn-toggle');
+            if (btn) { btn.innerText = 'START'; btn.className = 'btn-sw btn-toggle-start'; }
+        }
+        
+        // 表示更新
+        const display = document.getElementById('timer-display');
+        if (display) display.innerText = window.formatTime(window.elapsedTime);
+        if (typeof window.updateAdminCountdowns === 'function') window.updateAdminCountdowns();
+        
+        isRemoteUpdate = false;
+    }
+});
+</script>
+
 <script>
+    // --- Global Variables (Used by both scripts) ---
+    window.elapsedTime = 0;
+    window.timerInterval = null;
+    window.lastTick = Date.now();
+
+    function handleDragOver(e) { e.preventDefault(); if (e.dataTransfer) { e.dataTransfer.dropEffect = 'move'; } }
+
+    let fieldPositions = Array.from({length: 15}, (_, i) => ({ posId: i+1, player: null }));
+    let benchPlayers = [], reservations = [], adminCards = [], logs = [];
+    let isSecondHalf = false;
+    let catLimits = { abc: 4, c: 3 };
+    let frHistory = { 1: [], 2: [], 3: [] };
+    let directMode = false;
+
+    const STORAGE_KEY = "rugby_sub_manager_state_v432";
+
     function initApp() {
         var polyfillOptions = {
             dragImageGhostCustomClassName: "dnd-poly-ghost",
@@ -255,20 +336,100 @@
         loadFromStorage();
     }
 
-    function handleDragOver(e) { e.preventDefault(); if (e.dataTransfer) { e.dataTransfer.dropEffect = 'move'; } }
+    // --- Core Timer Logic ---
+    window.tick = function() {
+        const now = Date.now(); 
+        const delta = now - window.lastTick; 
+        window.lastTick = now;
+        
+        if (window.timerInterval) window.elapsedTime += delta; 
+        
+        const updateRemaining = (item) => {
+            if (item.remainingMs !== undefined) {
+                if (isMedicalType(item.type || item.adminType)) { 
+                    item.remainingMs = Math.max(0, item.remainingMs - delta); 
+                } else if (window.timerInterval) { 
+                    item.remainingMs = Math.max(0, item.remainingMs - delta); 
+                }
+            }
+        };
+        
+        adminCards.forEach(updateRemaining); 
+        reservations.forEach(r => { if(r.isFromAdmin) updateRemaining(r); });
+        
+        const display = document.getElementById('timer-display');
+        if (display) display.innerText = formatTime(window.elapsedTime);
+        updateAdminCountdowns();
+    };
 
-    let fieldPositions = Array.from({length: 15}, (_, i) => ({ posId: i+1, player: null }));
-    let benchPlayers = [], reservations = [], adminCards = [], logs = [];
-    let elapsedTime = 0, timerInterval = null, lastTick = Date.now();
-    let isSecondHalf = false;
-    let catLimits = { abc: 4, c: 3 };
-    let frHistory = { 1: [], 2: [], 3: [] };
-    let directMode = false;
+    function toggleTimer() {
+        const btn = document.getElementById('btn-toggle');
+        if (!window.timerInterval) { 
+            // 外部の同期関数が存在すれば呼び出す
+            if (typeof window.syncToFirebase === 'function') {
+                window.syncToFirebase(true, window.elapsedTime);
+            } else {
+                // Firebaseがない場合のフォールバック
+                window.lastTick = Date.now(); 
+                window.timerInterval = setInterval(window.tick, 100); 
+                btn.innerText = 'PAUSE'; 
+                btn.className = 'btn-sw btn-toggle-pause';
+            }
+        } else { 
+            if (typeof window.syncToFirebase === 'function') {
+                window.syncToFirebase(false, window.elapsedTime);
+            } else {
+                clearInterval(window.timerInterval); 
+                window.timerInterval = null; 
+                btn.innerText = 'START'; 
+                btn.className = 'btn-sw btn-toggle-start';
+            }
+        }
+    }
 
-    const STORAGE_KEY = "rugby_sub_manager_state_v432";
+    function resetTimer() { 
+        showConfirm("タイマーリセット", "経過時間を00:00にリセットしますか？", () => {
+            saveHistory(); 
+            if (typeof window.syncToFirebase === 'function') {
+                window.syncToFirebase(false, 0);
+            } else {
+                window.elapsedTime = 0; 
+                isSecondHalf = false; 
+                if (window.timerInterval) { clearInterval(window.timerInterval); window.timerInterval = null; }
+                document.getElementById('timer-display').innerText = "00:00";
+            }
+            saveToStorage(); 
+            render();
+        });
+    }
 
-    /* カスタムポップアップ(モーダル)管理 */
-    let pendingConfirm = null;
+    function saveEditedTime() {
+        saveHistory();
+        const m = parseInt(document.getElementById('edit-min').value) || 0; 
+        const s = parseInt(document.getElementById('edit-sec').value) || 0;
+        const newMs = (m * 60 + s) * 1000; 
+        const diff = newMs - window.elapsedTime;
+        
+        adminCards.forEach(c => { 
+            if (['YELLOW','RED','OFR'].includes(c.type) && c.remainingMs !== undefined) 
+                c.remainingMs = Math.max(0, c.remainingMs - diff); 
+        });
+        reservations.forEach(r => { 
+            if (r.isFromAdmin && ['YELLOW','RED','OFR'].includes(r.adminType) && r.remainingMs !== undefined) 
+                r.remainingMs = Math.max(0, r.remainingMs - diff); 
+        });
+        
+        window.elapsedTime = newMs; 
+        if (typeof window.syncToFirebase === 'function') {
+            window.syncToFirebase(!!window.timerInterval, window.elapsedTime);
+        }
+        
+        render(); 
+        hideTimeEdit();
+    }
+
+    // --- Rest of the Original Functions (Unchanged) ---
+
     function showConfirm(title, message, onConfirm) {
         document.getElementById('modal-title').innerText = title;
         document.getElementById('modal-player-list').innerHTML = "";
@@ -303,7 +464,7 @@
     }
 
     function saveToStorage() {
-        const state = { fieldPositions, benchPlayers, reservations, adminCards, logs, elapsedTime, isSecondHalf, catLimits, frHistory, directMode, teamName: document.getElementById('team-name-display').innerText };
+        const state = { fieldPositions, benchPlayers, reservations, adminCards, logs, elapsedTime: window.elapsedTime, isSecondHalf, catLimits, frHistory, directMode, teamName: document.getElementById('team-name-display').innerText };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
@@ -313,7 +474,7 @@
             try {
                 const state = JSON.parse(saved);
                 fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs;
-                elapsedTime = state.elapsedTime || 0; isSecondHalf = state.isSecondHalf || false; catLimits = state.catLimits || { abc: 4, c: 3 }; frHistory = state.frHistory || { 1: [], 2: [], 3: [] };
+                window.elapsedTime = state.elapsedTime || 0; isSecondHalf = state.isSecondHalf || false; catLimits = state.catLimits || { abc: 4, c: 3 }; frHistory = state.frHistory || { 1: [], 2: [], 3: [] };
                 directMode = !!state.directMode;
                 if (directMode) { const btn = document.getElementById('direct-toggle'); btn.className = "btn-direct-toggle direct-on"; btn.innerText = "Direct ON"; }
                 document.getElementById('team-name-display').innerText = state.teamName || "Drop Excel to Load Team";
@@ -383,10 +544,16 @@
 
     function recordEndOfFirstHalf() {
         saveHistory();
-        const timeStr = formatTime(elapsedTime); const PCStr = getPCNow();
+        const timeStr = formatTime(window.elapsedTime); const PCStr = getPCNow();
         logs.unshift({ id: Date.now(), type: 'End of first half', matchTime: timeStr, pcTime: PCStr, out: null, in: null, isPeriod: true });
-        elapsedTime = 2400000;
-        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; const btn = document.getElementById('btn-toggle'); btn.innerText = 'START'; btn.className = 'btn-sw btn-toggle-start'; }
+        
+        if (typeof window.syncToFirebase === 'function') {
+            window.syncToFirebase(false, 2400000);
+        } else {
+            window.elapsedTime = 2400000;
+            if (window.timerInterval) { clearInterval(window.timerInterval); window.timerInterval = null; const btn = document.getElementById('btn-toggle'); btn.innerText = 'START'; btn.className = 'btn-sw btn-toggle-start'; }
+        }
+        
         document.getElementById('timer-display').innerText = "40:00"; isSecondHalf = true; render(); toggleSetting();
     }
 
@@ -413,55 +580,54 @@
         }
     }
 
-    function showTimeEdit() { const popup = document.getElementById('time-edit-popup'); const s = Math.floor(elapsedTime / 1000); document.getElementById('edit-min').value = Math.floor(s / 60); document.getElementById('edit-sec').value = s % 60; popup.style.display = 'block'; }
-    function hideTimeEdit() { document.getElementById('time-edit-popup').style.display = 'none'; }
-
-    function saveEditedTime() {
-        saveHistory();
-        const m = parseInt(document.getElementById('edit-min').value) || 0; const s = parseInt(document.getElementById('edit-sec').value) || 0;
-        const newMs = (m * 60 + s) * 1000; const diff = newMs - elapsedTime;
-        adminCards.forEach(c => { if (['YELLOW','RED','OFR'].includes(c.type) && c.remainingMs !== undefined) c.remainingMs = Math.max(0, c.remainingMs - diff); });
-        reservations.forEach(r => { if (r.isFromAdmin && ['YELLOW','RED','OFR'].includes(r.adminType) && r.remainingMs !== undefined) r.remainingMs = Math.max(0, r.remainingMs - diff); });
-        elapsedTime = newMs; lastTick = Date.now(); document.getElementById('timer-display').innerText = formatTime(elapsedTime);
-        render(); hideTimeEdit();
+    function showTimeEdit() { 
+        const popup = document.getElementById('time-edit-popup'); 
+        const s = Math.floor(window.elapsedTime / 1000); 
+        document.getElementById('edit-min').value = Math.floor(s / 60); 
+        document.getElementById('edit-sec').value = s % 60; 
+        popup.style.display = 'block'; 
     }
+    
+    function hideTimeEdit() { document.getElementById('time-edit-popup').style.display = 'none'; }
 
     function getPCNow() { const d = new Date(); return [d.getHours(), d.getMinutes(), d.getSeconds()].map(v => String(v).padStart(2,'0')).join(':'); }
     function isMedicalType(type) { return ['Blood bin', 'HIA', 'B / HIA', 'Injury / F'].includes(type); }
 
-    function toggleTimer() {
-        const btn = document.getElementById('btn-toggle');
-        if (!timerInterval) { lastTick = Date.now(); timerInterval = setInterval(tick, 100); btn.innerText = 'PAUSE'; btn.className = 'btn-sw btn-toggle-pause'; }
-        else { clearInterval(timerInterval); timerInterval = null; btn.innerText = 'START'; btn.className = 'btn-sw btn-toggle-start'; }
-    }
-
-    function resetTimer() { 
-        showConfirm("タイマーリセット", "経過時間を00:00にリセットしますか？", () => {
-            saveHistory(); elapsedTime = 0; isSecondHalf = false; if (timerInterval) toggleTimer(); document.getElementById('timer-display').innerText = "00:00"; saveToStorage(); 
+    window.updateAdminCountdowns = function() {
+        adminCards.forEach(c => { 
+            const el = document.getElementById(`admin-time-${c.id}`); 
+            if (el) el.innerText = formatTime(c.remainingMs); 
         });
-    }
-
-    function tick() {
-        const now = Date.now(); const delta = now - lastTick; lastTick = now;
-        if (timerInterval) elapsedTime += delta; 
-        const updateRemaining = (item) => {
-            if (item.remainingMs !== undefined) {
-                if (isMedicalType(item.type || item.adminType)) { item.remainingMs = Math.max(0, item.remainingMs - delta); }
-                else if (timerInterval) { item.remainingMs = Math.max(0, item.remainingMs - delta); }
+        reservations.forEach(r => { 
+            if(r.isFromAdmin) { 
+                const el = document.getElementById(`res-time-${r.id}`); 
+                if(el) el.innerText = formatTime(r.remainingMs); 
             }
-        };
-        adminCards.forEach(updateRemaining); reservations.forEach(r => { if(r.isFromAdmin) updateRemaining(r); });
-        document.getElementById('timer-display').innerText = formatTime(elapsedTime);
-        adminCards.forEach(c => { const el = document.getElementById(`admin-time-${c.id}`); if (el) el.innerText = formatTime(c.remainingMs); });
-        reservations.forEach(r => { if(r.isFromAdmin) { const el = document.getElementById(`res-time-${r.id}`); if(el) el.innerText = formatTime(r.remainingMs); }});
-    }
+        });
+    };
 
-    function getCurrentState() { return JSON.stringify({ fieldPositions, benchPlayers, reservations, adminCards, logs, isSecondHalf, elapsedTime, frHistory, directMode }); }
+    function getCurrentState() { return JSON.stringify({ fieldPositions, benchPlayers, reservations, adminCards, logs, isSecondHalf, elapsedTime: window.elapsedTime, frHistory, directMode }); }
     function saveHistory() { historyStack.push(getCurrentState()); if (historyStack.length > 50) historyStack.shift(); redoStack = []; }
     let historyStack = [], redoStack = [];
     function undo() { if (historyStack.length === 0) return; redoStack.push(getCurrentState()); applyState(historyStack.pop()); }
     function redo() { if (redoStack.length === 0) return; historyStack.push(getCurrentState()); applyState(redoStack.pop()); }
-    function applyState(stateStr) { const state = JSON.parse(stateStr); fieldPositions = state.fieldPositions; benchPlayers = state.benchPlayers; reservations = state.reservations; adminCards = state.adminCards; logs = state.logs; isSecondHalf = state.isSecondHalf || false; elapsedTime = state.elapsedTime || 0; frHistory = state.frHistory || { 1: [], 2: [], 3: [] }; directMode = !!state.directMode; render(); }
+    function applyState(stateStr) { 
+        const state = JSON.parse(stateStr); 
+        fieldPositions = state.fieldPositions; 
+        benchPlayers = state.benchPlayers; 
+        reservations = state.reservations; 
+        adminCards = state.adminCards; 
+        logs = state.logs; 
+        isSecondHalf = state.isSecondHalf || false; 
+        window.elapsedTime = state.elapsedTime || 0; 
+        frHistory = state.frHistory || { 1: [], 2: [], 3: [] }; 
+        directMode = !!state.directMode; 
+        
+        if (typeof window.syncToFirebase === 'function') {
+            window.syncToFirebase(!!window.timerInterval, window.elapsedTime);
+        }
+        render(); 
+    }
 
     function dropToRes(e) { 
         e.preventDefault(); 
@@ -482,7 +648,7 @@
             validateFR(p, null, sourceItem.posId, () => {
                 saveHistory(); 
                 if (directMode) { 
-                    const matchTime = formatTime(elapsedTime); const pcTime = getPCNow(); 
+                    const matchTime = formatTime(window.elapsedTime); const pcTime = getPCNow(); 
                     sourceItem.player = null; const outPlayer = {...p, status: 'normal'}; 
                     const idx = benchPlayers.indexOf(null); if (idx !== -1) benchPlayers[idx] = outPlayer; else benchPlayers.push(outPlayer); 
                     logs.unshift({ id: Date.now(), type: 'OUT (Direct)', matchTime, pcTime, out: p, in: null }); render(); 
@@ -550,7 +716,7 @@
                             validateCategory(null, benchP, () => {
                                 saveHistory(); 
                                 if (directMode) {
-                                    const matchTime = formatTime(elapsedTime), pcTime = getPCNow();
+                                    const matchTime = formatTime(window.elapsedTime), pcTime = getPCNow();
                                     benchPlayers[benchIdx] = null; item.player = benchP;
                                     logs.unshift({ id: Date.now(), type: 'IN (Direct)', matchTime, pcTime, out: null, in: benchP });
                                     render();
@@ -600,7 +766,7 @@
         checkFRCompliance(); updateCatDisplay(); renderRes(); renderAdmin(); renderLogs(); saveToStorage(); 
     }
 
-    function swapPlayers(sourceItem, targetItem) { const pA = sourceItem.player, pB = targetItem.player; sourceItem.player = pB; targetItem.player = pA; logs.unshift({ id: Date.now(), type: 'SWAP', matchTime: formatTime(elapsedTime), pcTime: getPCNow(), out: pA, in: pB }); render(); }
+    function swapPlayers(sourceItem, targetItem) { const pA = sourceItem.player, pB = targetItem.player; sourceItem.player = pB; targetItem.player = pA; logs.unshift({ id: Date.now(), type: 'SWAP', matchTime: formatTime(window.elapsedTime), pcTime: getPCNow(), out: pA, in: pB }); render(); }
     function createReservation(outP, inP, posId, benchIndex, type) { reservations.push({ id: Date.now(), out: outP, in: inP, posId: posId, benchIdx: benchIndex, type: type, isFromAdmin: false, isCard: false }); render(); }
     function createCardReservation(outP, posId) { reservations.push({ id: Date.now(), out: outP, in: null, posId: posId, type: 'YELLOW', isCard: true }); render(); }
 
@@ -624,7 +790,7 @@
 
     function executeRes(id) {
         saveHistory(); const r = reservations.find(x => x.id === id); if (!r) return;
-        const f = fieldPositions.find(p => p.posId === r.posId), matchTime = formatTime(elapsedTime), pcTime = getPCNow();
+        const f = fieldPositions.find(p => p.posId === r.posId), matchTime = formatTime(window.elapsedTime), pcTime = getPCNow();
         const cleanupBench = (p) => { if (p) benchPlayers = benchPlayers.map(x => (x && x.id === p.id) ? null : x); };
         cleanupBench(r.out); cleanupBench(r.in);
 
@@ -652,7 +818,7 @@
                     s = 'medical_red'; 
                     const mins = (r.type === 'Blood bin') ? 15 : (r.type === 'B / HIA' ? 17 : 12); 
                     adminCards.push({ id: Date.now(), type: r.type, out: {...r.out, status: s}, in: r.in, posId: r.posId, matchTime: matchTime, pcTime: pcTime, remainingMs: mins * 60000, nextAction: 'Return' }); 
-                } else if(r.type === 'Injury / F') { s = 'injury'; } // Injury / F時は、statusをinjuryにしてグレーバック・選択不可を適用
+                } else if(r.type === 'Injury / F') { s = 'injury'; }
                 const outP = {...r.out, status: s}; const idx = benchPlayers.indexOf(null); if (idx !== -1) benchPlayers[idx] = outP; else benchPlayers.push(outP);
             }
             f.player = r.in;
@@ -710,7 +876,7 @@
     function setOfrDecision(id, d) { 
         saveHistory(); const c = adminCards.find(x => x.id === id); if(!c) return; 
         c.ofrDecision = d; 
-        logs.unshift({ id: Date.now(), type: `OFR DECISION: ${d}`, matchTime: formatTime(elapsedTime), pcTime: getPCNow(), out: c.out, isColor: true, reason: "" }); 
+        logs.unshift({ id: Date.now(), type: `OFR DECISION: ${d}`, matchTime: formatTime(window.elapsedTime), pcTime: getPCNow(), out: c.out, isColor: true, reason: "" }); 
         if(d === 'RED UPGRADE') { 
             c.nextAction = 'Replacement'; c.remainingMs = 1200000; 
             if([1,2,3].includes(c.posId)) frHistory[c.posId].push('OFR DECISION: RED UPGRADE'); 
@@ -795,7 +961,10 @@
 
     document.body.addEventListener('dragover', e => e.preventDefault());
     document.body.addEventListener('drop', e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file && file.name.endsWith('.xlsx')) { const reader = new FileReader(); reader.onload = ev => { const wb = XLSX.read(new Uint8Array(ev.target.result), {type: 'array'}); processExcel(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1})); }; reader.readAsArrayBuffer(file); } });
-    setInterval(tick, 100);
+    
+    // 定期的な tick。
+    setInterval(window.tick, 100);
+
 </script>
 </body>
 </html>
