@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ラグビー選手交代管理 - ポータル</title>
     <style>
-        /* 全体設定：シンプルで清潔感のあるデザイン */
+        /* 全体のレイアウト設定 */
         body {
             font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
             background-color: #f0f2f5;
@@ -23,7 +23,7 @@
         }
 
         h1 {
-            color: #1a472a; /* ラグビーの芝をイメージした深い緑 */
+            color: #1a472a; /* ラグビー場をイメージした深緑 */
             font-size: 1.8rem;
             margin-bottom: 5px;
         }
@@ -33,16 +33,16 @@
             color: #666;
         }
 
-        /* 10会場を並べるグリッドレイアウト */
+        /* 会場カードを並べるグリッド */
         .portal-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
             width: 100%;
-            max-width: 1100px;
+            max-width: 1200px;
         }
 
-        /* 各会場のカード */
+        /* 会場ごとの枠（カード） */
         .venue-card {
             background: #ffffff;
             border-radius: 12px;
@@ -61,36 +61,37 @@
             color: #1a472a;
         }
 
-        /* ボタンのグループ */
+        /* 1と2のボタンを横並びにするコンテナ */
         .button-container {
             display: flex;
             width: 100%;
             gap: 15px;
         }
 
-        /* 個別のリンクボタン：黒文字ルールを適用 */
+        /* リンクボタンの共通スタイル */
         .venue-link {
             flex: 1;
             text-decoration: none;
             background-color: #f8f9fa;
-            color: #000000; /* 常に黒文字 */
+            color: #000000; /* 保存されたルールに準拠：黒文字 */
             border: 2px solid #ddd;
             padding: 20px 0;
             border-radius: 8px;
-            font-size: 1.5rem;
+            font-size: 1.6rem;
             font-weight: 800;
             text-align: center;
             transition: all 0.2s ease;
         }
 
-        /* タップ・クリック時の反応 */
+        /* タップ・ホバー時の挙動 */
         .venue-link:hover {
             background-color: #e9ecef;
             border-color: #1a472a;
         }
 
         .venue-link:active {
-            transform: scale(0.95);
+            transform: scale(0.96);
+            background-color: #dee2e6;
         }
 
         footer {
@@ -98,13 +99,20 @@
             font-size: 0.8rem;
             color: #999;
         }
+
+        /* スマホ向けの微調整 */
+        @media (max-width: 480px) {
+            .portal-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
 
     <header>
         <h1>ラグビー選手交代管理システム</h1>
-        <p class="subtitle">会場を選択してアプリを起動してください</p>
+        <p class="subtitle">会場を選択して管理画面を起動してください</p>
     </header>
 
     <div class="portal-grid">
