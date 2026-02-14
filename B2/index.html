@@ -40,19 +40,13 @@ button {
     outline: none;
 }
 
-button:active {
-    transform: translateY(2px);
-}
+button:active { transform: translateY(2px); }
 
 /* メイン操作系 */
-#toggleBtn {
-    font-size: 24px;
-    padding: 18px 50px;
-    min-width: 180px;
-}
+#toggleBtn { font-size: 24px; padding: 18px 50px; min-width: 180px; }
 .running { background-color: #ff4d4d; color: white; box-shadow: 0 4px 15px rgba(255, 77, 77, 0.3); }
 .paused { background-color: #00c851; color: white; box-shadow: 0 4px 15px rgba(0, 200, 81, 0.3); }
-.reset-btn { background-color: #424242; color: #bdbdbd; }
+.main-reset-btn { background-color: #424242; color: #bdbdbd; }
 
 /* 修正エリア（エディタ） */
 #editor {
@@ -77,40 +71,44 @@ input[type="number"] {
     vertical-align: middle;
 }
 input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-    opacity: 1;
-    height: 50px;
-    width: 30px;
-}
+input[type="number"]::-webkit-outer-spin-button { opacity: 1; height: 50px; width: 30px; }
 .apply-btn { background-color: #007bff; color: white; vertical-align: middle; }
 
-/* トライ専用エリア */
-.tri-section {
-    margin-top: 40px;
+/* カウントダウンセクション */
+.countdown-container {
+    margin-top: 30px;
     padding-top: 20px;
     border-top: 1px dashed #333;
+    display: flex;
+    justify-content: center;
+    gap: 40px;
 }
 
-/* 90秒専用タイマーの表示 */
-#triDisplay {
+.countdown-box { display: flex; flex-direction: column; align-items: center; }
+
+.countdown-display {
     font-size: 36px;
-    color: #ffab00;
     font-weight: bold;
     margin-bottom: 10px;
     height: 45px;
 }
 
-.tri-btn {
-    background-color: #ffab00;
-    color: #000;
-    font-size: 28px;
-    padding: 20px 60px;
-    border-radius: 12px;
-    box-shadow: 0 6px 20px rgba(255, 171, 0, 0.3);
+/* 各種リセットボタン（小型） */
+.sub-reset-btn {
+    font-size: 14px;
+    padding: 8px 15px;
+    margin-top: 5px;
+    background-color: #333;
+    color: #888;
 }
-.tri-btn:hover {
-    background-color: #ffc400;
-}
+.sub-reset-btn:hover { background-color: #444; color: #eee; }
+
+/* TRY/PKカラー */
+.try-color { color: #ffab00; }
+.try-btn { background-color: #ffab00; color: #000; font-size: 22px; padding: 15px 25px; }
+
+.pk-color { color: #00b0ff; }
+.pk-btn { background-color: #00b0ff; color: #000; font-size: 22px; padding: 15px 25px; }
 </style>
 </head>
 <body>
@@ -119,7 +117,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
 <div class="controls">
     <button id="toggleBtn" class="paused" onclick="toggle()">START</button>
-    <button class="reset-btn" onclick="reset()">RESET</button>
+    <button class="main-reset-btn" onclick="reset()">RESET</button>
 </div>
 
 <div id="editor">
@@ -127,9 +125,18 @@ input[type="number"]::-webkit-outer-spin-button {
     <input type="number" id="secInput" min="0" max="59" value="0"> <span>秒</span>
     <button class="apply-btn" onclick="applyTime()">時間設定</button>
 
-    <div class="tri-section">
-        <div id="triDisplay">--</div>
-        <button class="tri-btn" onclick="start90sTri()">90s TRY (START)</button>
+    <div class="countdown-container">
+        <div class="countdown-box">
+            <div id="tryDisplay" class="countdown-display try-color">--</div>
+            <button class="try-btn" onclick="start90sTry()">90s TRY</button>
+            <button class="sub-reset-btn" onclick="resetTry()">TRY RESET</button>
+        </div>
+
+        <div class="countdown-box">
+            <div id="pkDisplay" class="countdown-display pk-color">--</div>
+            <button class="pk-btn" onclick="start60sPK()">60s PK</button>
+            <button class="sub-reset-btn" onclick="resetPK()">PK RESET</button>
+        </div>
     </div>
 </div>
 
@@ -151,99 +158,78 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 const stateRef = ref(db, "stopwatch");
-const triRef = ref(db, "triTimer");
+const tryRef = ref(db, "tryTimer");
+const pkRef = ref(db, "pkTimer");
 
 let localState = { running: false, startTime: 0, elapsed: 0 };
-let triState = { running: false, startTime: 0, elapsed: 0 };
+let tryState = { running: false, startTime: 0, elapsed: 0 };
+let pkState = { running: false, startTime: 0, elapsed: 0 };
 
-onValue(stateRef, (snapshot) => {
-    if(snapshot.exists()) {
-        localState = snapshot.val();
-        updateButton();
-    }
-});
+onValue(stateRef, snapshot => { if(snapshot.exists()) { localState = snapshot.val(); updateButton(); } });
+onValue(tryRef, snapshot => { if(snapshot.exists()) tryState = snapshot.val(); });
+onValue(pkRef, snapshot => { if(snapshot.exists()) pkState = snapshot.val(); });
 
-onValue(triRef, (snapshot) => {
-    if(snapshot.exists()) {
-        triState = snapshot.val();
-    }
-});
-
-function getTotal() {
-    let total = localState.elapsed;
-    if(localState.running) total += Date.now() - localState.startTime;
-    return total;
-}
-
-function getTriTotal() {
-    if (!triState.running) return triState.elapsed;
-    let remain = triState.elapsed - (Date.now() - triState.startTime);
-    return remain > 0 ? remain : 0;
+function getTimerTotal(state) {
+    if (!state.running) return state.elapsed;
+    let val = state.elapsed - (Date.now() - state.startTime);
+    return val > 0 ? val : 0;
 }
 
 function updateDisplay() {
-    // メインタイマー
-    let total = getTotal();
-    let sec = Math.floor(total/1000)%60;
-    let min = Math.floor(total/60000);
-    document.getElementById("time").innerText = String(min).padStart(2,"0")+":"+String(sec).padStart(2,"0");
+    // メイン
+    let total = localState.elapsed + (localState.running ? Date.now() - localState.startTime : 0);
+    document.getElementById("time").innerText = String(Math.floor(total/60000)).padStart(2,"0")+":"+String(Math.floor(total/1000)%60).padStart(2,"0");
 
-    // 90秒タイマー
-    let triTotal = getTriTotal();
-    if (triState.running || (triTotal > 0 && triTotal < 90000)) {
-        let totalSeconds = Math.ceil(triTotal / 1000);
-        document.getElementById("triDisplay").innerText = "LIMIT: " + totalSeconds + "s";
-        
-        // 0秒になったら停止状態をFirebaseに保存
-        if (triState.running && triTotal <= 0) {
-            set(triRef, { running: false, startTime: 0, elapsed: 0 });
-        }
-    } else if (triTotal === 90000 && !triState.running) {
-        document.getElementById("triDisplay").innerText = "90s";
-    } else {
-        document.getElementById("triDisplay").innerText = "--";
-    }
+    // TRY
+    let tryRem = getTimerTotal(tryState);
+    if (tryState.running || (tryRem > 0 && tryRem < 90000)) {
+        document.getElementById("tryDisplay").innerText = "TRY: " + Math.ceil(tryRem / 1000) + "s";
+        if (tryState.running && tryRem <= 0) set(tryRef, { running: false, startTime: 0, elapsed: 0 });
+    } else { document.getElementById("tryDisplay").innerText = "--"; }
+
+    // PK
+    let pkRem = getTimerTotal(pkState);
+    if (pkState.running || (pkRem > 0 && pkRem < 60000)) {
+        document.getElementById("pkDisplay").innerText = "PK: " + Math.ceil(pkRem / 1000) + "s";
+        if (pkState.running && pkRem <= 0) set(pkRef, { running: false, startTime: 0, elapsed: 0 });
+    } else { document.getElementById("pkDisplay").innerText = "--"; }
 }
 setInterval(updateDisplay, 100);
 
 function updateButton() {
     const btn = document.getElementById("toggleBtn");
-    if(localState.running) {
-        btn.innerText = "PAUSE";
-        btn.className = "running";
-    } else {
-        btn.innerText = "START";
-        btn.className = "paused";
-    }
+    btn.innerText = localState.running ? "PAUSE" : "START";
+    btn.className = localState.running ? "running" : "paused";
 }
 
-window.toggle = function() {
+window.toggle = () => {
     if(localState.running) {
-        set(stateRef, { running: false, startTime: 0, elapsed: getTotal() });
+        let current = localState.elapsed + (Date.now() - localState.startTime);
+        set(stateRef, { running: false, startTime: 0, elapsed: current });
     } else {
         set(stateRef, { running: true, startTime: Date.now(), elapsed: localState.elapsed });
     }
 }
 
-window.reset = function() {
+// メインRESET（すべてリセット）
+window.reset = () => {
     set(stateRef, { running: false, startTime: 0, elapsed: 0 });
-    set(triRef, { running: false, startTime: 0, elapsed: 0 });
+    set(tryRef, { running: false, startTime: 0, elapsed: 0 });
+    set(pkRef, { running: false, startTime: 0, elapsed: 0 });
 }
 
-window.applyTime = function() {
+// 個別リセット
+window.resetTry = () => set(tryRef, { running: false, startTime: 0, elapsed: 0 });
+window.resetPK = () => set(pkRef, { running: false, startTime: 0, elapsed: 0 });
+
+window.applyTime = () => {
     let min = parseInt(document.getElementById("minInput").value) || 0;
     let sec = parseInt(document.getElementById("secInput").value) || 0;
     set(stateRef, { running: false, startTime: 0, elapsed: (min*60 + sec)*1000 });
 }
 
-window.start90sTri = function() {
-    // ボタンが押されたときだけ開始
-    set(triRef, {
-        running: true,
-        startTime: Date.now(),
-        elapsed: 90 * 1000
-    });
-}
+window.start90sTry = () => set(tryRef, { running: true, startTime: Date.now(), elapsed: 90000 });
+window.start60sPK = () => set(pkRef, { running: true, startTime: Date.now(), elapsed: 60000 });
 </script>
 
 </body>
