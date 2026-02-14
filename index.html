@@ -3,206 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ラグビー選手交代管理 - ポータル</title>
+    <title>ラグビー選手交代管理 - 12会場ポータル</title>
     <style>
-        /* 全体のレイアウト設定 */
+        :root {
+            --primary-green: #1a472a;
+            --pitch-gradient: linear-gradient(135deg, #1a472a 0%, #2d5a3f 100%);
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --accent-gold: #c5a059;
+        }
+
         body {
             font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
-            background-color: #f0f2f5;
-            color: #333;
+            background-color: var(--bg-color);
+            color: var(--text-main);
             margin: 0;
-            padding: 20px;
+            padding: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
+            min-height: 100vh;
         }
 
         header {
+            width: 100%;
+            background: var(--pitch-gradient);
+            color: white;
+            padding: 30px 0;
             text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             margin-bottom: 30px;
+            border-bottom: 5px solid var(--accent-gold);
         }
 
         h1 {
-            color: #1a472a; /* ラグビー場をイメージした深緑 */
-            font-size: 1.8rem;
-            margin-bottom: 5px;
+            margin: 0;
+            font-size: 2rem;
+            letter-spacing: 2px;
         }
 
         .subtitle {
+            margin-top: 8px;
             font-size: 0.9rem;
-            color: #666;
+            opacity: 0.9;
         }
 
-        /* 会場カードを並べるグリッド */
+        .container {
+            width: 95%;
+            max-width: 1400px;
+            padding-bottom: 60px;
+        }
+
         .portal-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            /* 画面幅に合わせて自動で1〜4列に調整 */
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 20px;
-            width: 100%;
-            max-width: 1200px;
         }
 
-        /* 会場ごとの枠（カード） */
         .venue-card {
-            background: #ffffff;
+            background: var(--card-bg);
             border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-            padding: 20px;
-            border-top: 6px solid #1a472a;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            overflow: hidden;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.06);
+            border: 1px solid rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+
+        .venue-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 25px rgba(0,0,0,0.12);
+        }
+
+        .venue-header {
+            background-color: #fcfcfc;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            text-align: center;
         }
 
         .venue-label {
-            font-size: 1.3rem;
+            font-size: 1.2rem;
             font-weight: bold;
-            margin-bottom: 15px;
-            color: #1a472a;
+            color: var(--primary-green);
         }
 
-        /* 1と2のボタンを横並びにするコンテナ */
         .button-container {
+            padding: 20px;
             display: flex;
-            width: 100%;
-            gap: 15px;
+            flex-direction: column;
+            gap: 12px;
         }
 
-        /* リンクボタンの共通スタイル */
+        /* リンクボタン：黒文字ルール */
         .venue-link {
-            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             text-decoration: none;
-            background-color: #f8f9fa;
-            color: #000000; /* 保存されたルールに準拠：黒文字 */
-            border: 2px solid #ddd;
-            padding: 20px 0;
-            border-radius: 8px;
-            font-size: 1.6rem;
-            font-weight: 800;
-            text-align: center;
+            background-color: #ffffff;
+            color: #000000; /* 必須：黒文字 */
+            border: 2px solid #e0e0e0;
+            padding: 16px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            font-weight: bold;
             transition: all 0.2s ease;
         }
 
-        /* タップ・ホバー時の挙動 */
+        .btn-sub { border-left: 10px solid var(--primary-green); }
+        .btn-watch { border-left: 10px solid var(--accent-gold); }
+
         .venue-link:hover {
-            background-color: #e9ecef;
-            border-color: #1a472a;
+            background-color: #f8f9f8;
+            border-color: var(--primary-green);
         }
 
         .venue-link:active {
-            transform: scale(0.96);
-            background-color: #dee2e6;
+            transform: scale(0.97);
         }
 
         footer {
-            margin-top: 50px;
-            font-size: 0.8rem;
-            color: #999;
+            width: 100%;
+            text-align: center;
+            padding: 20px;
+            background: #222;
+            color: #888;
+            font-size: 0.75rem;
+            margin-top: auto;
         }
 
-        /* スマホ向けの微調整 */
-        @media (max-width: 480px) {
-            .portal-grid {
-                grid-template-columns: 1fr;
-            }
+        @media (max-width: 600px) {
+            h1 { font-size: 1.5rem; }
+            .container { width: 98%; }
+            .venue-link { padding: 14px; font-size: 1rem; }
         }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>ラグビー選手交代管理システム</h1>
-        <p class="subtitle">会場を選択して管理画面を起動してください</p>
+        <h1>Rugby Match Management</h1>
+        <p class="subtitle">12会場・一括管理ポータル</p>
     </header>
 
-    <div class="portal-grid">
-        <div class="venue-card">
-            <div class="venue-label">熊谷ラグビー場</div>
-            <div class="button-container">
-                <a href="./A1/index.html" class="venue-link">Substitution</a>
-                <a href="./A2/index.html" class="venue-link">StopWatch</a>
+    <div class="container">
+        <div class="portal-grid" id="mainGrid">
             </div>
-        </div>
-
-        <div class="venue-card">
-            <div class="venue-label">会場 B</div>
-            <div class="button-container">
-                <a href="./B1/index.html" class="venue-link">B1</a>
-                <a href="./B2/index.html" class="venue-link">B2</a>
-            </div>
-        </div>
-
-        <div class="venue-card">
-            <div class="venue-label">会場 C</div>
-            <div class="button-container">
-                <a href="./C1/index.html" class="venue-link">C1</a>
-                <a href="./C2/index.html" class="venue-link">C2</a>
-            </div>
-        </div>
-
-        <div class="venue-card">
-            <div class="venue-label">会場 D</div>
-            <div class="button-container">
-                <a href="./D1/index.html" class="venue-link">D1</a>
-                <a href="./D2/index.html" class="venue-link">D2</a>
-            </div>
-        </div>
-
-        <div class="venue-card">
-            <div class="venue-label">会場 E</div>
-            <div class="button-container">
-                <a href="./E1/index.html" class="venue-link">E1</a>
-                <a href="./E2/index.html" class="venue-link">E2</a>
-            </div>
-        </div>
-
-        <div class="venue-card">
-            <div class="venue-label">会場 F</div>
-            <div class="button-container">
-                <a href="./F1/index.html" class="venue-link">F1</a>
-                <a href="./F2/index.html" class="venue-link">F2</a>
-            </div>
-        </div>
-
-        <div class="venue-card">
-            <div class="venue-label">会場 G</div>
-            <div class="button-container">
-                <a href="./G1/index.html" class="venue-link">G1</a>
-                <a href="./G2/index.html" class="venue-link">G2</a>
-            </div>
-        </div>
-
-        <div class="venue-card">
-            <div class="venue-label">会場 H</div>
-            <div class="button-container">
-                <a href="./H1/index.html" class="venue-link">H1</a>
-                <a href="./H2/index.html" class="venue-link">H2</a>
-            </div>
-        </div>
-
-        <div class="venue-card">
-            <div class="venue-label">会場 I</div>
-            <div class="button-container">
-                <a href="./I1/index.html" class="venue-link">I1</a>
-                <a href="./I2/index.html" class="venue-link">I2</a>
-            </div>
-        </div>
-
-        <div class="venue-card">
-            <div class="venue-label">会場 J</div>
-            <div class="button-container">
-                <a href="./J1/index.html" class="venue-link">J1</a>
-                <a href="./J2/index.html" class="venue-link">J2</a>
-            </div>
-        </div>
     </div>
 
     <footer>
-        &copy; 2026 Rugby Substitution Management System
+        &copy; 2026 Rugby Substitution Management System | Official Multi-Venue Portal
     </footer>
+
+    <script>
+        // 会場名のリスト（A〜L）
+        // 熊谷ラグビー場など、特定の名称にしたい場合はここを書き換えてください
+        const venues = [
+            { id: 'A', name: '熊谷ラグビー場' },
+            { id: 'B', name: '会場 B' },
+            { id: 'C', name: '会場 C' },
+            { id: 'D', name: '会場 D' },
+            { id: 'E', name: '会場 E' },
+            { id: 'F', name: '会場 F' },
+            { id: 'G', name: '会場 G' },
+            { id: 'H', name: '会場 H' },
+            { id: 'I', name: '会場 I' },
+            { id: 'J', name: '会場 J' },
+            { id: 'K', name: '会場 K' },
+            { id: 'L', name: '会場 L' }
+        ];
+
+        const grid = document.getElementById('mainGrid');
+
+        venues.forEach(v => {
+            const card = document.createElement('div');
+            card.className = 'venue-card';
+            card.innerHTML = `
+                <div class="venue-header">
+                    <div class="venue-label">${v.name}</div>
+                </div>
+                <div class="button-container">
+                    <a href="./${v.id}1/index.html" class="venue-link btn-sub">Substitution</a>
+                    <a href="./${v.id}2/index.html" class="venue-link btn-watch">StopWatch</a>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    </script>
 
 </body>
 </html>
-
-
-
