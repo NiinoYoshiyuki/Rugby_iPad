@@ -257,19 +257,33 @@
         
         adminCards.forEach(c => {
             if (['YELLOW','RED','OFR'].includes(c.type) && c.baseTime !== undefined) {
-                console.log('調整前 - Type:', c.type, 'baseTime:', c.baseTime, 'remainingMs:', c.remainingMs);
+                console.log('調整前 - Type:', c.type, 'ofrDecision:', c.ofrDecision, 'baseTime:', c.baseTime, 'remainingMs:', c.remainingMs);
                 
                 // 前半終了時点での経過時間を計算
                 const elapsedSinceBase = previousTime - c.baseTime;
-                const originalDuration = c.type === 'RED' ? 1200000 : 600000;
+                
+                // originalDurationを決定
+                let originalDuration;
+                if (c.ofrDecision === 'RED UPGRADE') {
+                    // RED UPGRADEの場合：現在の残り時間 + 既に経過した時間 = 元の総時間
+                    originalDuration = c.remainingMs + elapsedSinceBase;
+                    console.log('RED UPGRADE detected, originalDuration calculated:', originalDuration, '=', Math.floor(originalDuration/60000) + '分');
+                } else {
+                    // 通常のYC/RC/OFR
+                    originalDuration = c.type === 'RED' ? 1200000 : 600000;
+                }
+                
                 c.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
                 
                 console.log('経過時間:', elapsedSinceBase, '=', Math.floor(elapsedSinceBase/60000) + '分');
                 console.log('残り時間:', c.remainingMs, '=', Math.floor(c.remainingMs/60000) + '分');
                 
                 // baseTimeを40:00基準に更新
-                c.baseTime = 2400000 - c.remainingMs;
+                // 40:00から経過時間分だけ前にずらす
+                const elapsedFromOriginal = originalDuration - c.remainingMs;
+                c.baseTime = 2400000 - elapsedFromOriginal;
                 
+                console.log('元の総時間:', originalDuration, '経過:', elapsedFromOriginal, '=', Math.floor(elapsedFromOriginal/60000) + '分');
                 console.log('調整後 - baseTime:', c.baseTime, '=', Math.floor(c.baseTime/60000) + ':' + String(Math.floor(c.baseTime/1000)%60).padStart(2,'0'));
             }
         });
@@ -278,9 +292,19 @@
             reservations.forEach(r => {
                 if (r.isFromAdmin && ['YELLOW','RED','OFR'].includes(r.adminType) && r.baseTime !== undefined) {
                     const elapsedSinceBase = previousTime - r.baseTime;
-                    const originalDuration = r.adminType === 'RED' ? 1200000 : 600000;
+                    
+                    let originalDuration;
+                    if (r.ofrDecision === 'RED UPGRADE') {
+                        originalDuration = r.remainingMs + elapsedSinceBase;
+                    } else {
+                        originalDuration = r.adminType === 'RED' ? 1200000 : 600000;
+                    }
+                    
                     r.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
-                    r.baseTime = 2400000 - r.remainingMs;
+                    
+                    // baseTimeを40:00基準に更新
+                    const elapsedFromOriginal = originalDuration - r.remainingMs;
+                    r.baseTime = 2400000 - elapsedFromOriginal;
                 }
             });
         }
