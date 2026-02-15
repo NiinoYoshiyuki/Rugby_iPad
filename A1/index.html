@@ -1160,12 +1160,44 @@ window.getHalfTimeMarker = () => halfTimeMarker;
         logs.unshift({ id: Date.now(), type: `OFR DECISION: ${d}`, matchTime: formatTime(window.elapsedTime), pcTime: getPCNow(), out: c.out, isColor: true, reason: "" }); 
         if(d === 'RED UPGRADE') { 
             c.nextAction = 'Replacement';
-            // RED UPGRADEの場合、baseTimeを維持して20分にリセット
-            c.remainingMs = 1200000;
-            // baseTimeが設定されていない場合は現在時刻を基準に
-            if (c.baseTime === undefined) {
-                c.baseTime = window.elapsedTime - (600000 - c.remainingMs);
+            
+            console.log('=== RED UPGRADE DEBUG ===');
+            console.log('Before - baseTime:', c.baseTime, 'remainingMs:', c.remainingMs, 'type:', c.type);
+            
+            // 現在の残り時間を計算
+            if (c.baseTime !== undefined) {
+                const currentTime = Math.floor(window.elapsedTime / 1000) * 1000;
+                const elapsedSinceBase = currentTime - c.baseTime;
+                const currentRemaining = Math.max(0, 600000 - elapsedSinceBase); // OFRは元々10分
+                
+                console.log('currentTime:', currentTime, 'elapsedSinceBase:', elapsedSinceBase, 'currentRemaining:', currentRemaining);
+                
+                // 10分追加した残り時間
+                const newRemaining = currentRemaining + 600000; // 現在の残り + 10分
+                
+                console.log('newRemaining (現在+10分):', newRemaining, '=', Math.floor(newRemaining/60000) + '分');
+                
+                // baseTimeを逆算（現在時刻 - 経過時間）
+                // 20分から新しい残り時間を引いた分が経過時間
+                const newElapsed = 1200000 - newRemaining;
+                c.baseTime = currentTime - newElapsed;
+                
+                console.log('newElapsed:', newElapsed, 'new baseTime:', c.baseTime);
+                
+                c.remainingMs = newRemaining; // 表示用
+            } else {
+                // baseTimeが未設定の場合（旧バージョン互換性）
+                console.log('baseTime undefined, setting to current time');
+                c.baseTime = Math.floor(window.elapsedTime / 1000) * 1000;
+                c.remainingMs = 1200000;
             }
+            
+            // typeをREDに変更（updateAdminCountdownsで20分として計算されるように）
+            c.type = 'RED';
+            
+            console.log('After - baseTime:', c.baseTime, 'remainingMs:', c.remainingMs, 'type:', c.type);
+            console.log('=== RED UPGRADE DEBUG END ===');
+            
             if([1,2,3].includes(c.posId)) frHistory[c.posId].push('OFR DECISION: RED UPGRADE'); 
             render(); openPlayerModal(id); 
         } else { c.nextAction = 'Return'; render(); } 
