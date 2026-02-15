@@ -738,57 +738,24 @@ window.getHalfTimeMarker = () => halfTimeMarker;
 
     function recordEndOfFirstHalf() {
         saveHistory();
-        const currentTime = window.elapsedTime; // 前半終了時点の時刻（例：43:00 = 2580000）
-        const timeStr = formatTime(currentTime); 
+        
+        // halfTimeMarkerがあればそれを使用（SW01で前半終了済みの場合）
+        // なければ現在時刻を使用
+        let actualEndTime;
+        if (typeof window.getHalfTimeMarker === 'function' && window.getHalfTimeMarker() !== null) {
+            actualEndTime = window.getHalfTimeMarker(); // SW01で記録された前半終了時刻
+        } else {
+            actualEndTime = window.elapsedTime; // 現在の時刻
+        }
+        
+        const timeStr = formatTime(actualEndTime); 
         const PCStr = getPCNow();
+        
+        // ログのみ記録（YC/RC/OFRの調整やストップウォッチの変更は行わない）
         logs.unshift({ id: Date.now(), type: 'End of first half', matchTime: timeStr, pcTime: PCStr, out: null, in: null, isPeriod: true });
         
-        // 前半終了時点で全カードの残り時間を確定
-        adminCards.forEach(c => {
-            if (['YELLOW','RED','OFR'].includes(c.type) && c.baseTime !== undefined) {
-                // 前半終了時点での経過時間を計算
-                const elapsedSinceBase = currentTime - c.baseTime;
-                const originalDuration = c.type === 'RED' ? 1200000 : 600000;
-                c.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
-                // baseTimeを40:00基準に更新（40:00 - 残り時間 = 新しいbaseTime）
-                c.baseTime = 2400000 - c.remainingMs;
-            }
-        });
-        
-        reservations.forEach(r => {
-            if (r.isFromAdmin && ['YELLOW','RED','OFR'].includes(r.adminType) && r.baseTime !== undefined) {
-                const elapsedSinceBase = currentTime - r.baseTime;
-                const originalDuration = r.adminType === 'RED' ? 1200000 : 600000;
-                r.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
-                r.baseTime = 2400000 - r.remainingMs;
-            }
-        });
-        
-        // ストップウォッチを40:00に設定
-        window.elapsedTime = 2400000;
-        if (typeof window.syncToFirebase === 'function') {
-            window.syncToFirebase(false, 2400000);
-        } else {
-            if (window.timerInterval) { 
-                clearInterval(window.timerInterval); 
-                window.timerInterval = null; 
-                const btn = document.getElementById('btn-toggle'); 
-                btn.innerText = 'START'; 
-                btn.className = 'btn-sw btn-toggle-start'; 
-            }
-        }
-        
-        // 表示を更新
-        document.getElementById('timer-display').innerText = "40:00"; 
-        isSecondHalf = true; 
-        
-        // 残り時間表示を即座に更新
-        if (typeof window.updateAdminCountdowns === 'function') {
-            window.updateAdminCountdowns();
-        }
-        
         render(); 
-        saveToStorage(); // localStorageに保存
+        saveToStorage();
         toggleSetting();
     }
 
