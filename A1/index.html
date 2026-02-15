@@ -239,6 +239,61 @@
     </div>
 </div>
 
+<script>
+    // --- グローバル関数を先に定義（Firebaseモジュールから呼び出せるように） ---
+    
+    // 前半終了時にbaseTimeを40:00基準に調整
+    window.adjustBaseTimeForHalfTime = function(previousTime) {
+        console.log('=== adjustBaseTimeForHalfTime called ===');
+        console.log('previousTime (前半終了時刻):', previousTime, '=', Math.floor(previousTime/60000) + ':' + String(Math.floor(previousTime/1000)%60).padStart(2,'0'));
+        
+        // adminCardsがまだ定義されていない場合は何もしない
+        if (typeof adminCards === 'undefined') {
+            console.log('adminCards not yet defined, skipping adjustment');
+            return;
+        }
+        
+        // previousTime = 前半終了時の実際の時刻（例：43:00 = 2580000）
+        
+        adminCards.forEach(c => {
+            if (['YELLOW','RED','OFR'].includes(c.type) && c.baseTime !== undefined) {
+                console.log('調整前 - Type:', c.type, 'baseTime:', c.baseTime, 'remainingMs:', c.remainingMs);
+                
+                // 前半終了時点での経過時間を計算
+                const elapsedSinceBase = previousTime - c.baseTime;
+                const originalDuration = c.type === 'RED' ? 1200000 : 600000;
+                c.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
+                
+                console.log('経過時間:', elapsedSinceBase, '=', Math.floor(elapsedSinceBase/60000) + '分');
+                console.log('残り時間:', c.remainingMs, '=', Math.floor(c.remainingMs/60000) + '分');
+                
+                // baseTimeを40:00基準に更新
+                c.baseTime = 2400000 - c.remainingMs;
+                
+                console.log('調整後 - baseTime:', c.baseTime, '=', Math.floor(c.baseTime/60000) + ':' + String(Math.floor(c.baseTime/1000)%60).padStart(2,'0'));
+            }
+        });
+        
+        if (typeof reservations !== 'undefined') {
+            reservations.forEach(r => {
+                if (r.isFromAdmin && ['YELLOW','RED','OFR'].includes(r.adminType) && r.baseTime !== undefined) {
+                    const elapsedSinceBase = previousTime - r.baseTime;
+                    const originalDuration = r.adminType === 'RED' ? 1200000 : 600000;
+                    r.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
+                    r.baseTime = 2400000 - r.remainingMs;
+                }
+            });
+        }
+        
+        console.log('=== adjustBaseTimeForHalfTime completed ===');
+        
+        // localStorageに保存
+        if (typeof saveToStorage === 'function') {
+            saveToStorage();
+        }
+    };
+</script>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -256,8 +311,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const stateRef = ref(db, "stopwatch");
+const halfTimeRef = ref(db, "halfTimeMarker"); // 前半終了時刻のマーカー
 
 let isRemoteUpdate = false;
+let halfTimeMarker = null; // 前半終了時のストップウォッチ時刻
+let isHalfTimeAdjusted = false; // 前半終了調整が完了したかのフラグ
 
 // グローバル変数にFirebase同期関数を登録
 window.syncToFirebase = function(running, elapsed) {
@@ -274,6 +332,14 @@ onValue(stateRef, (snapshot) => {
     if (snapshot.exists()) {
         isRemoteUpdate = true;
         const data = snapshot.val();
+        
+        // localStorageから前回の時刻を取得
+        const savedElapsedTime = localStorage.getItem('lastElapsedTime');
+        const oldElapsedTime = savedElapsedTime ? parseInt(savedElapsedTime) : window.elapsedTime;
+        
+        console.log('=== stateRef onValue triggered ===');
+        console.log('oldElapsedTime:', oldElapsedTime, '=', Math.floor(oldElapsedTime/60000) + ':' + String(Math.floor(oldElapsedTime/1000)%60).padStart(2,'0'));
+        console.log('newElapsedTime:', data.elapsed, '=', Math.floor(data.elapsed/60000) + ':' + String(Math.floor(data.elapsed/1000)%60).padStart(2,'0'));
         
         // メインスクリプト側のインターバルを停止
         if (window.timerInterval) {
@@ -295,6 +361,30 @@ onValue(stateRef, (snapshot) => {
             if (btn) { btn.innerText = 'START'; btn.className = 'btn-sw btn-toggle-start'; }
         }
         
+        // 現在の時刻をlocalStorageに保存
+        localStorage.setItem('lastElapsedTime', window.elapsedTime.toString());
+        
+        // 時刻が後ろに戻った場合（前半終了: 43:00 → 40:00など）
+        // ただし、既に調整済みの場合はスキップ
+        if (oldElapsedTime > 2400000 && window.elapsedTime === 2400000 && !isHalfTimeAdjusted) {
+            console.log('>>> Detected backward time jump (前半終了)');
+            console.log('>>> Using oldElapsedTime:', oldElapsedTime, 'as previousTime');
+            
+            // oldElapsedTimeを前半終了時刻として使用
+            if (typeof window.adjustBaseTimeForHalfTime === 'function') {
+                window.adjustBaseTimeForHalfTime(oldElapsedTime);
+                isHalfTimeAdjusted = true; // 調整完了フラグを立てる
+                console.log('>>> isHalfTimeAdjusted set to true (from time jump)');
+            }
+        } else if (oldElapsedTime > 2400000 && window.elapsedTime === 2400000 && isHalfTimeAdjusted) {
+            console.log('>>> Time jump detected but already adjusted, skipping');
+        }
+        
+        // YC/RC/OFRの残り時間を再計算（時刻が変更された場合に対応）
+        if (typeof window.recalculateRemainingTimes === 'function') {
+            window.recalculateRemainingTimes();
+        }
+        
         // 表示更新
         const display = document.getElementById('timer-display');
         if (display) display.innerText = window.formatTime(window.elapsedTime);
@@ -303,6 +393,39 @@ onValue(stateRef, (snapshot) => {
         isRemoteUpdate = false;
     }
 });
+
+// 前半終了マーカーの監視
+onValue(halfTimeRef, (snapshot) => {
+    const oldHalfTimeMarker = halfTimeMarker;
+    
+    console.log('=== halfTimeRef onValue triggered ===');
+    console.log('snapshot.exists():', snapshot.exists());
+    
+    if (snapshot.exists()) {
+        halfTimeMarker = snapshot.val();
+        console.log('halfTimeMarker updated:', halfTimeMarker, '=', Math.floor(halfTimeMarker/60000) + ':' + String(Math.floor(halfTimeMarker/1000)%60).padStart(2,'0'));
+        console.log('oldHalfTimeMarker:', oldHalfTimeMarker);
+        
+        // 新しくhalfTimeMarkerが設定された場合、baseTimeを調整
+        if (oldHalfTimeMarker === null && halfTimeMarker !== null) {
+            console.log('>>> Calling adjustBaseTimeForHalfTime (from halfTimeMarker)');
+            if (typeof window.adjustBaseTimeForHalfTime === 'function') {
+                window.adjustBaseTimeForHalfTime(halfTimeMarker);
+                isHalfTimeAdjusted = true; // 調整完了フラグを立てる
+                console.log('>>> isHalfTimeAdjusted set to true');
+            } else {
+                console.error('adjustBaseTimeForHalfTime function not found!');
+            }
+        }
+    } else {
+        console.log('halfTimeMarker cleared (null)');
+        halfTimeMarker = null;
+        isHalfTimeAdjusted = false; // フラグをリセット
+    }
+});
+
+// halfTimeMarkerをグローバルに公開
+window.getHalfTimeMarker = () => halfTimeMarker;
 </script>
 
 <script>
@@ -350,9 +473,19 @@ onValue(stateRef, (snapshot) => {
         const updateRemaining = (item) => {
             if (item.remainingMs !== undefined) {
                 if (isMedicalType(item.type || item.adminType)) { 
+                    // メディカル系は常にデルタで減少
                     item.remainingMs = Math.max(0, item.remainingMs - delta); 
-                } else if (window.timerInterval) { 
-                    item.remainingMs = Math.max(0, item.remainingMs - delta); 
+                } else if (window.timerInterval && ['YELLOW','RED','OFR'].includes(item.type || item.adminType)) {
+                    // YC/RC/OFRは基準時刻ベースで計算
+                    if (item.baseTime !== undefined) {
+                        const currentMatchTime = window.elapsedTime;
+                        const elapsedSinceBase = currentMatchTime - item.baseTime;
+                        const originalDuration = item.type === 'RED' || item.adminType === 'RED' ? 1200000 : 600000;
+                        item.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
+                    } else {
+                        // 旧バージョン互換性のためのフォールバック
+                        item.remainingMs = Math.max(0, item.remainingMs - delta);
+                    }
                 }
             }
         };
@@ -361,7 +494,20 @@ onValue(stateRef, (snapshot) => {
         reservations.forEach(r => { if(r.isFromAdmin) updateRemaining(r); });
         
         const display = document.getElementById('timer-display');
-        if (display) display.innerText = formatTime(window.elapsedTime);
+        if (display) {
+            const formattedTime = formatTime(window.elapsedTime);
+            display.innerText = formattedTime;
+            
+            // デバッグ：秒が変わるタイミングでログ出力
+            if (window.lastDisplayedSecond !== Math.floor(window.elapsedTime / 1000)) {
+                window.lastDisplayedSecond = Math.floor(window.elapsedTime / 1000);
+                if (adminCards.length > 0 && adminCards[0].baseTime !== undefined) {
+                    const card = adminCards[0];
+                    const elapsed = window.elapsedTime - card.baseTime;
+                    console.log('時刻:', formattedTime, 'elapsedTime:', window.elapsedTime, 'baseTime:', card.baseTime, '経過:', elapsed, '残り:', Math.floor((600000 - elapsed)/1000) + 's');
+                }
+            }
+        }
         updateAdminCountdowns();
     };
 
@@ -411,15 +557,34 @@ onValue(stateRef, (snapshot) => {
         const m = parseInt(document.getElementById('edit-min').value) || 0; 
         const s = parseInt(document.getElementById('edit-sec').value) || 0;
         const newMs = (m * 60 + s) * 1000; 
-        const diff = newMs - window.elapsedTime;
         
+        // YC/RC/OFRは基準時刻ベースで残り時間を再計算
         adminCards.forEach(c => { 
-            if (['YELLOW','RED','OFR'].includes(c.type) && c.remainingMs !== undefined) 
-                c.remainingMs = Math.max(0, c.remainingMs - diff); 
+            if (['YELLOW','RED','OFR'].includes(c.type)) {
+                if (c.baseTime !== undefined) {
+                    // 新しい時刻での経過時間を計算
+                    const elapsedSinceBase = newMs - c.baseTime;
+                    const originalDuration = c.type === 'RED' ? 1200000 : 600000;
+                    c.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
+                } else {
+                    // 旧バージョン互換性: 時刻の差分だけ調整
+                    const diff = newMs - window.elapsedTime;
+                    c.remainingMs = Math.max(0, c.remainingMs - diff);
+                }
+            }
         });
+        
         reservations.forEach(r => { 
-            if (r.isFromAdmin && ['YELLOW','RED','OFR'].includes(r.adminType) && r.remainingMs !== undefined) 
-                r.remainingMs = Math.max(0, r.remainingMs - diff); 
+            if (r.isFromAdmin && ['YELLOW','RED','OFR'].includes(r.adminType)) {
+                if (r.baseTime !== undefined) {
+                    const elapsedSinceBase = newMs - r.baseTime;
+                    const originalDuration = r.adminType === 'RED' ? 1200000 : 600000;
+                    r.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
+                } else {
+                    const diff = newMs - window.elapsedTime;
+                    r.remainingMs = Math.max(0, r.remainingMs - diff);
+                }
+            }
         });
         
         window.elapsedTime = newMs; 
@@ -427,6 +592,8 @@ onValue(stateRef, (snapshot) => {
             window.syncToFirebase(!!window.timerInterval, window.elapsedTime);
         }
         
+        // 即座に表示を更新
+        updateAdminCountdowns();
         render(); 
         hideTimeEdit();
     }
@@ -547,17 +714,58 @@ onValue(stateRef, (snapshot) => {
 
     function recordEndOfFirstHalf() {
         saveHistory();
-        const timeStr = formatTime(window.elapsedTime); const PCStr = getPCNow();
+        const currentTime = window.elapsedTime; // 前半終了時点の時刻（例：43:00 = 2580000）
+        const timeStr = formatTime(currentTime); 
+        const PCStr = getPCNow();
         logs.unshift({ id: Date.now(), type: 'End of first half', matchTime: timeStr, pcTime: PCStr, out: null, in: null, isPeriod: true });
         
+        // 前半終了時点で全カードの残り時間を確定
+        adminCards.forEach(c => {
+            if (['YELLOW','RED','OFR'].includes(c.type) && c.baseTime !== undefined) {
+                // 前半終了時点での経過時間を計算
+                const elapsedSinceBase = currentTime - c.baseTime;
+                const originalDuration = c.type === 'RED' ? 1200000 : 600000;
+                c.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
+                // baseTimeを40:00基準に更新（40:00 - 残り時間 = 新しいbaseTime）
+                c.baseTime = 2400000 - c.remainingMs;
+            }
+        });
+        
+        reservations.forEach(r => {
+            if (r.isFromAdmin && ['YELLOW','RED','OFR'].includes(r.adminType) && r.baseTime !== undefined) {
+                const elapsedSinceBase = currentTime - r.baseTime;
+                const originalDuration = r.adminType === 'RED' ? 1200000 : 600000;
+                r.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
+                r.baseTime = 2400000 - r.remainingMs;
+            }
+        });
+        
+        // ストップウォッチを40:00に設定
+        window.elapsedTime = 2400000;
         if (typeof window.syncToFirebase === 'function') {
             window.syncToFirebase(false, 2400000);
         } else {
-            window.elapsedTime = 2400000;
-            if (window.timerInterval) { clearInterval(window.timerInterval); window.timerInterval = null; const btn = document.getElementById('btn-toggle'); btn.innerText = 'START'; btn.className = 'btn-sw btn-toggle-start'; }
+            if (window.timerInterval) { 
+                clearInterval(window.timerInterval); 
+                window.timerInterval = null; 
+                const btn = document.getElementById('btn-toggle'); 
+                btn.innerText = 'START'; 
+                btn.className = 'btn-sw btn-toggle-start'; 
+            }
         }
         
-        document.getElementById('timer-display').innerText = "40:00"; isSecondHalf = true; render(); toggleSetting();
+        // 表示を更新
+        document.getElementById('timer-display').innerText = "40:00"; 
+        isSecondHalf = true; 
+        
+        // 残り時間表示を即座に更新
+        if (typeof window.updateAdminCountdowns === 'function') {
+            window.updateAdminCountdowns();
+        }
+        
+        render(); 
+        saveToStorage(); // localStorageに保存
+        toggleSetting();
     }
 
     function updateCatDisplay() {
@@ -597,14 +805,61 @@ onValue(stateRef, (snapshot) => {
     function isMedicalType(type) { return ['Blood bin', 'HIA', 'B / HIA', 'Injury / F'].includes(type); }
 
     window.updateAdminCountdowns = function() {
+        // 現在の試合時間を秒単位に切り捨て（ストップウォッチ表示と一致させる）
+        const currentTime = Math.floor(window.elapsedTime / 1000) * 1000;
+        
         adminCards.forEach(c => { 
-            const el = document.getElementById(`admin-time-${c.id}`); 
-            if (el) el.innerText = formatTime(c.remainingMs); 
+            const el = document.getElementById(`admin-time-${c.id}`);
+            if (el) {
+                // YC/RC/OFRは現在時刻から直接計算
+                if (['YELLOW','RED','OFR'].includes(c.type) && c.baseTime !== undefined) {
+                    const elapsedSinceBase = currentTime - c.baseTime;
+                    const originalDuration = c.type === 'RED' ? 1200000 : 600000;
+                    const remaining = Math.max(0, originalDuration - elapsedSinceBase);
+                    el.innerText = formatTime(remaining);
+                } else {
+                    // メディカル系はremainingMsを表示
+                    el.innerText = formatTime(c.remainingMs);
+                }
+            }
         });
+        
         reservations.forEach(r => { 
             if(r.isFromAdmin) { 
-                const el = document.getElementById(`res-time-${r.id}`); 
-                if(el) el.innerText = formatTime(r.remainingMs); 
+                const el = document.getElementById(`res-time-${r.id}`);
+                if(el) {
+                    // YC/RC/OFRは現在時刻から直接計算
+                    if (['YELLOW','RED','OFR'].includes(r.adminType) && r.baseTime !== undefined) {
+                        const elapsedSinceBase = currentTime - r.baseTime;
+                        const originalDuration = r.adminType === 'RED' ? 1200000 : 600000;
+                        const remaining = Math.max(0, originalDuration - elapsedSinceBase);
+                        el.innerText = formatTime(remaining);
+                    } else {
+                        // メディカル系はremainingMsを表示
+                        el.innerText = formatTime(r.remainingMs);
+                    }
+                }
+            }
+        });
+    };
+
+    // YC/RC/OFRの残り時間を現在時刻から再計算
+    window.recalculateRemainingTimes = function() {
+        const currentTime = window.elapsedTime;
+        
+        adminCards.forEach(c => { 
+            if (['YELLOW','RED','OFR'].includes(c.type) && c.baseTime !== undefined) {
+                const elapsedSinceBase = currentTime - c.baseTime;
+                const originalDuration = c.type === 'RED' ? 1200000 : 600000;
+                c.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
+            }
+        });
+        
+        reservations.forEach(r => { 
+            if (r.isFromAdmin && ['YELLOW','RED','OFR'].includes(r.adminType) && r.baseTime !== undefined) {
+                const elapsedSinceBase = currentTime - r.baseTime;
+                const originalDuration = r.adminType === 'RED' ? 1200000 : 600000;
+                r.remainingMs = Math.max(0, originalDuration - elapsedSinceBase);
             }
         });
     };
@@ -810,7 +1065,30 @@ onValue(stateRef, (snapshot) => {
             logs.unshift({ id: Date.now(), type: r.type, matchTime: matchTime, pcTime: pcTime, out: r.out, in: null, isColor: true, reason: "" });
             if (r.out) { const up = {...r.out, status: statusMap[r.type]}; const eIdx = benchPlayers.indexOf(null); if (eIdx !== -1) benchPlayers[eIdx] = up; else benchPlayers.push(up); }
             f.player = null;
-            adminCards.push({ id: Date.now(), type: r.type, out: r.out, in: null, posId: r.posId, matchTime: matchTime, pcTime: pcTime, remainingMs: r.type === 'RED' ? 1200000 : 600000, nextAction: r.type === 'RED' ? 'Replacement' : 'Return' });
+            // 基準時刻を記録（前半終了マーカーがあればそれを使用、なければ現在時刻）
+            let baseTime = (typeof window.getHalfTimeMarker === 'function' && window.getHalfTimeMarker() !== null) 
+                ? window.getHalfTimeMarker() 
+                : window.elapsedTime;
+            // baseTimeを秒単位に切り捨て（ミリ秒の端数を削除）
+            baseTime = Math.floor(baseTime / 1000) * 1000;
+            
+            // 初期remainingMsを計算（baseTimeからの経過を考慮）
+            const originalDuration = r.type === 'RED' ? 1200000 : 600000;
+            const elapsedSinceBase = window.elapsedTime - baseTime;
+            const initialRemaining = Math.max(0, originalDuration - elapsedSinceBase);
+            
+            adminCards.push({ 
+                id: Date.now(), 
+                type: r.type, 
+                out: r.out, 
+                in: null, 
+                posId: r.posId, 
+                matchTime: matchTime, 
+                pcTime: pcTime, 
+                remainingMs: initialRemaining, // 経過時間を考慮した残り時間
+                nextAction: r.type === 'RED' ? 'Replacement' : 'Return',
+                baseTime: baseTime // 基準時刻を保存（秒単位）
+            });
         } else if (r.type === 'Temporary') {
             const cF = f.player; f.player = r.in; if (cF) { const eIdx = benchPlayers.indexOf(null); if (eIdx !== -1) benchPlayers[eIdx] = cF; else benchPlayers.push(cF); }
             logs.unshift({ id: Date.now(), type: 'Temporary (OUT)', matchTime: matchTime, pcTime: pcTime, out: cF, in: r.in });
@@ -881,7 +1159,13 @@ onValue(stateRef, (snapshot) => {
         c.ofrDecision = d; 
         logs.unshift({ id: Date.now(), type: `OFR DECISION: ${d}`, matchTime: formatTime(window.elapsedTime), pcTime: getPCNow(), out: c.out, isColor: true, reason: "" }); 
         if(d === 'RED UPGRADE') { 
-            c.nextAction = 'Replacement'; c.remainingMs = 1200000; 
+            c.nextAction = 'Replacement';
+            // RED UPGRADEの場合、baseTimeを維持して20分にリセット
+            c.remainingMs = 1200000;
+            // baseTimeが設定されていない場合は現在時刻を基準に
+            if (c.baseTime === undefined) {
+                c.baseTime = window.elapsedTime - (600000 - c.remainingMs);
+            }
             if([1,2,3].includes(c.posId)) frHistory[c.posId].push('OFR DECISION: RED UPGRADE'); 
             render(); openPlayerModal(id); 
         } else { c.nextAction = 'Return'; render(); } 
@@ -918,7 +1202,19 @@ onValue(stateRef, (snapshot) => {
         saveHistory(); const c = adminCards.find(x => x.id === id); if (!c) return; 
         if (['YELLOW', 'RED', 'OFR'].includes(c.type) && ['Tactical', 'Injury', 'Replacement'].includes(c.nextAction) && !c.in) { showAlert("警告", "交代する選手を選択してください。"); return; } 
         let outP, inP; if (c.nextAction === 'Return') { outP = c.in; inP = c.out; } else { outP = c.out; inP = c.in; } 
-        reservations.push({ id: Date.now(), out: outP, in: inP, posId: c.posId, benchIdx: c.benchIdx, type: c.nextAction === 'Replacement' ? 'Tactical' : c.nextAction, isFromAdmin: true, adminType: c.type, remainingMs: c.remainingMs, ofrDecision: c.ofrDecision }); 
+        reservations.push({ 
+            id: Date.now(), 
+            out: outP, 
+            in: inP, 
+            posId: c.posId, 
+            benchIdx: c.benchIdx, 
+            type: c.nextAction === 'Replacement' ? 'Tactical' : c.nextAction, 
+            isFromAdmin: true, 
+            adminType: c.type, 
+            remainingMs: c.remainingMs, 
+            ofrDecision: c.ofrDecision,
+            baseTime: c.baseTime // 基準時刻を引き継ぐ
+        }); 
         adminCards = adminCards.filter(x => x.id !== id); render(); 
     }
 
