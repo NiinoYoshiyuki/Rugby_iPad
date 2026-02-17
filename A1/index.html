@@ -1124,7 +1124,11 @@ function executeRes(id) {
             });
         } else if (r.type === 'Temporary') {
             const cF = f.player; f.player = r.in; if (cF) { const eIdx = benchPlayers.indexOf(null); if (eIdx !== -1) benchPlayers[eIdx] = cF; else benchPlayers.push(cF); }
-            logs.unshift({ id: Date.now(), type: 'Temporary (OUT)', matchTime: matchTime, pcTime: pcTime, out: cF, in: r.in });
+            if (cF) {
+                logs.unshift({ id: Date.now(), type: 'Temporary (OUT)', matchTime: matchTime, pcTime: pcTime, out: cF, in: r.in });
+            } else {
+                logs.unshift({ id: Date.now(), type: 'Temporary (IN)', matchTime: matchTime, pcTime: pcTime, out: null, in: r.in });
+            }
         } else {
             if (r.out) {
                 let s = 'normal'; if(r.adminType === 'RED' || r.type === 'RED' || r.ofrDecision === 'RED UPGRADE') s = 'rc'; else if(r.type === 'Tactical') s = 'tactical'; else if(r.type === 'Injury') s = 'injury';
@@ -1293,7 +1297,7 @@ function executeRes(id) {
             if (l.isPeriod) { cls += ' log-period'; div.innerHTML = `<button class="btn-log-delete" onclick="deleteSingleLog(event, ${idx})">×</button><b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})`; }
             else {
                 if (l.isColor) { if (l.type.includes('YELLOW')) cls += ' log-yc'; else if (l.type.includes('RED')) cls += ' log-rc'; else if (l.type.includes('OFR')) cls += ' log-ofr'; div.onclick = () => openReasonModal(l.id); }
-                div.innerHTML = `<button class="btn-log-delete" onclick="deleteSingleLog(event, ${idx})">×</button><b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})<br>OUT:#${l.out?.no || '--'} ${l.out?.name || '(NONE)'}${l.in ? `<br>IN:#${l.in.no} ${l.in.name}` : ''}${l.reason ? `<span class=\"log-reason-text\">${l.reason}</span>` : ''}`;
+                div.innerHTML = `<button class="btn-log-delete" onclick="deleteSingleLog(event, ${idx})">×</button><b>${l.type || '--'}</b> [${l.matchTime}] (${l.pcTime})${l.out ? `<br>OUT:#${l.out.no} ${l.out.name}` : ''}${l.in ? `<br>IN:#${l.in.no} ${l.in.name}` : ''}${l.reason ? `<span class=\"log-reason-text\">${l.reason}</span>` : ''}`;
             }
             div.className = cls; el.appendChild(div);
         });
