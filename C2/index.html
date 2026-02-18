@@ -1,1 +1,342 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Sync StopWatch - Premium</title>
+<style>
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background-color: #121212;
+    color: #e0e0e0;
+    text-align: center;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100vh;
+}
 
+/* 会場名表示 */
+#venue {
+    font-size: 24px;
+    font-weight: 400;
+    color: #b0b0b0;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+}
+
+/* メインタイマー */
+#time {
+    font-size: 120px;
+    font-weight: 200;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -2px;
+    margin-bottom: 30px;
+    color: #ffffff;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+}
+
+/* ボタンの共通スタイル */
+button {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 12px 30px;
+    margin: 10px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+button:active { transform: translateY(2px); }
+
+/* メイン操作系 */
+#toggleBtn { font-size: 24px; padding: 18px 50px; min-width: 180px; }
+.running { background-color: #ff4d4d; color: white; box-shadow: 0 4px 15px rgba(255, 77, 77, 0.3); }
+.paused { background-color: #00c851; color: white; box-shadow: 0 4px 15px rgba(0, 200, 81, 0.3); }
+.main-reset-btn { background-color: #424242; color: #bdbdbd; }
+
+/* 前半終了ボタン */
+.half-time-btn {
+    background-color: #ff6b35;
+    color: white;
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+    font-size: 20px;
+    padding: 15px 40px;
+}
+.half-time-btn:hover {
+    background-color: #ff8555;
+}
+.half-time-btn.executed {
+    background-color: #4caf50;
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* 前半終了確認表示 */
+#halfTimeStatus {
+    display: none;
+    font-size: 18px;
+    font-weight: 600;
+    color: #4caf50;
+    margin-bottom: 15px;
+    padding: 10px 20px;
+    background-color: rgba(76, 175, 80, 0.1);
+    border: 2px solid #4caf50;
+    border-radius: 8px;
+    display: inline-block;
+}
+.half-time-btn.executed {
+    background-color: #4caf50;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+}
+
+/* 前半終了確認表示 */
+#halfTimeStatus {
+    margin-top: 20px;
+    padding: 15px 25px;
+    background-color: #4caf50;
+    color: white;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    display: none;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+}
+
+/* 修正エリア（エディタ） */
+#editor {
+    margin-top: 50px;
+    padding: 25px;
+    background-color: #1e1e1e;
+    display: inline-block;
+    border-radius: 16px;
+    border: 1px solid #333;
+}
+#editor span { font-size: 20px; color: #9e9e9e; margin: 0 10px; vertical-align: middle; }
+
+input[type="number"] {
+    font-size: 32px;
+    width: 100px;
+    height: 60px;
+    background-color: #333;
+    border: 2px solid #444;
+    color: white;
+    border-radius: 10px;
+    text-align: center;
+    vertical-align: middle;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { opacity: 1; height: 50px; width: 30px; }
+.apply-btn { background-color: #007bff; color: white; vertical-align: middle; }
+
+/* カウントダウンセクション */
+.countdown-container {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px dashed #333;
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+}
+
+.countdown-box { display: flex; flex-direction: column; align-items: center; }
+
+.countdown-display {
+    font-size: 36px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    height: 45px;
+}
+
+/* 各種リセットボタン（小型） */
+.sub-reset-btn {
+    font-size: 14px;
+    padding: 8px 15px;
+    margin-top: 5px;
+    background-color: #333;
+    color: #888;
+}
+.sub-reset-btn:hover { background-color: #444; color: #eee; }
+
+/* TRY/PKカラー */
+.try-color { color: #ffab00; }
+.try-btn { background-color: #ffab00; color: #000; font-size: 22px; padding: 15px 25px; }
+
+.pk-color { color: #00b0ff; }
+.pk-btn { background-color: #00b0ff; color: #000; font-size: 22px; padding: 15px 25px; }
+</style>
+</head>
+<body>
+
+<div id="venue">花園ラグビー場</div>
+
+<div id="time">00:00</div>
+
+<div id="halfTimeStatus" style="display: none;">✓ 前半終了完了</div>
+
+<div class="controls">
+    <button id="toggleBtn" class="paused" onclick="toggle()">START</button>
+    <button class="main-reset-btn" onclick="reset()">RESET</button>
+    <button id="halfTimeBtn" class="half-time-btn" onclick="endOfFirstHalf()">前半終了</button>
+</div>
+
+<div id="editor">
+    <input type="number" id="minInput" min="0" value="0"> <span>分</span>
+    <input type="number" id="secInput" min="0" max="59" value="0"> <span>秒</span>
+    <button class="apply-btn" onclick="applyTime()">時間設定</button>
+
+    <div class="countdown-container">
+        <div class="countdown-box">
+            <div id="tryDisplay" class="countdown-display try-color">--</div>
+            <button class="try-btn" onclick="start90sTry()">90s TRY</button>
+            <button class="sub-reset-btn" onclick="resetTry()">TRY RESET</button>
+        </div>
+
+        <div class="countdown-box">
+            <div id="pkDisplay" class="countdown-display pk-color">--</div>
+            <button class="pk-btn" onclick="start60sPK()">60s PK</button>
+            <button class="sub-reset-btn" onclick="resetPK()">PK RESET</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBj2ouhECtkYoV2UY9xcVYURH7Vhn5ym-I",
+  authDomain: "sw03-4873b.firebaseapp.com",
+  databaseURL: "https://sw03-4873b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "sw03-4873b",
+  storageBucket: "sw03-4873b.firebasestorage.app",
+  messagingSenderId: "752278292150",
+  appId: "1:752278292150:web:bb410ca616feb1983e0817"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const stateRef = ref(db, "stopwatch");
+const tryRef = ref(db, "tryTimer");
+const pkRef = ref(db, "pkTimer");
+const halfTimeRef = ref(db, "halfTimeMarker"); // 新規追加
+
+let localState = { running: false, startTime: 0, elapsed: 0 };
+let tryState = { running: false, startTime: 0, elapsed: 0 };
+let pkState = { running: false, startTime: 0, elapsed: 0 };
+
+onValue(stateRef, snapshot => { if(snapshot.exists()) { localState = snapshot.val(); updateButton(); } });
+onValue(tryRef, snapshot => { if(snapshot.exists()) tryState = snapshot.val(); });
+onValue(pkRef, snapshot => { if(snapshot.exists()) pkState = snapshot.val(); });
+
+function getTimerTotal(state) {
+    if (!state.running) return state.elapsed;
+    let val = state.elapsed - (Date.now() - state.startTime);
+    return val > 0 ? val : 0;
+}
+
+function updateDisplay() {
+    // メイン
+    let total = localState.elapsed + (localState.running ? Date.now() - localState.startTime : 0);
+    document.getElementById("time").innerText = String(Math.floor(total/60000)).padStart(2,"0")+":"+String(Math.floor(total/1000)%60).padStart(2,"0");
+
+    // TRY
+    let tryRem = getTimerTotal(tryState);
+    if (tryState.running || (tryRem > 0 && tryRem < 90000)) {
+        document.getElementById("tryDisplay").innerText = "TRY: " + Math.ceil(tryRem / 1000) + "s";
+        if (tryState.running && tryRem <= 0) set(tryRef, { running: false, startTime: 0, elapsed: 0 });
+    } else { document.getElementById("tryDisplay").innerText = "--"; }
+
+    // PK
+    let pkRem = getTimerTotal(pkState);
+    if (pkState.running || (pkRem > 0 && pkRem < 60000)) {
+        document.getElementById("pkDisplay").innerText = "PK: " + Math.ceil(pkRem / 1000) + "s";
+        if (pkState.running && pkRem <= 0) set(pkRef, { running: false, startTime: 0, elapsed: 0 });
+    } else { document.getElementById("pkDisplay").innerText = "--"; }
+}
+setInterval(updateDisplay, 100);
+
+function updateButton() {
+    const btn = document.getElementById("toggleBtn");
+    btn.innerText = localState.running ? "PAUSE" : "START";
+    btn.className = localState.running ? "running" : "paused";
+}
+
+window.toggle = () => {
+    if(localState.running) {
+        let current = localState.elapsed + (Date.now() - localState.startTime);
+        set(stateRef, { running: false, startTime: 0, elapsed: current });
+    } else {
+        set(stateRef, { running: true, startTime: Date.now(), elapsed: localState.elapsed });
+    }
+}
+
+// メインRESET（すべてリセット）
+const originalResetFunc = () => {
+    set(stateRef, { running: false, startTime: 0, elapsed: 0 });
+    set(tryRef, { running: false, startTime: 0, elapsed: 0 });
+    set(pkRef, { running: false, startTime: 0, elapsed: 0 });
+    set(halfTimeRef, null); // 前半終了マーカーもリセット
+}
+
+window.reset = () => {
+    // 確認ダイアログ
+    if (!confirm('全てをリセットしますか？\n\nストップウォッチ、TRY、PK、\n前半終了マーカーが全てリセットされます。')) {
+        return; // キャンセルされた場合は何もしない
+    }
+    
+    originalResetFunc();
+    
+    // 確認表示もリセット
+    document.getElementById("halfTimeStatus").style.display = "none";
+    const btn = document.getElementById("halfTimeBtn");
+    btn.classList.remove("executed");
+    btn.innerText = "前半終了";
+}
+
+// 個別リセット
+window.resetTry = () => set(tryRef, { running: false, startTime: 0, elapsed: 0 });
+window.resetPK = () => set(pkRef, { running: false, startTime: 0, elapsed: 0 });
+
+window.applyTime = () => {
+    let min = parseInt(document.getElementById("minInput").value) || 0;
+    let sec = parseInt(document.getElementById("secInput").value) || 0;
+    set(stateRef, { running: false, startTime: 0, elapsed: (min*60 + sec)*1000 });
+}
+
+window.start90sTry = () => set(tryRef, { running: true, startTime: Date.now(), elapsed: 90000 });
+window.start60sPK = () => set(pkRef, { running: true, startTime: Date.now(), elapsed: 60000 });
+
+// 前半終了ボタン - 現在時刻を記録して40:00にセット
+window.endOfFirstHalf = () => {
+    // 確認ダイアログ
+    if (!confirm('前半終了処理を実行しますか？\n\nストップウォッチが40:00にリセットされ、\nYC/RC/OFRの残り時間が調整されます。')) {
+        return; // キャンセルされた場合は何もしない
+    }
+    
+    const currentTime = localState.elapsed + (localState.running ? Date.now() - localState.startTime : 0);
+    
+    // 前半終了時刻をFirebaseに保存
+    set(halfTimeRef, currentTime);
+    
+    // ストップウォッチを40:00（2400000ms）に設定して停止
+    set(stateRef, { running: false, startTime: 0, elapsed: 2400000 });
+    
+    // 確認表示を更新
+    const statusDiv = document.getElementById("halfTimeStatus");
+    const timeStr = String(Math.floor(currentTime/60000)).padStart(2,"0")+":"+String(Math.floor(currentTime/1000)%60).padStart(2,"0");
+    statusDiv.innerText = `✓ 前半終了完了 (${timeStr} → 40:00)`;
+    statusDiv.style.display = "block";
+    
+    // ボタンの色を変更
+    const btn = document.getElementById("halfTimeBtn");
+    btn.classList.add("executed");
+    btn.innerText = "前半終了済み";
+}
+</script>
+
+</body>
+</html>
